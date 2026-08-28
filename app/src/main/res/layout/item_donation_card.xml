@@ -51,33 +51,16 @@
             android:orientation="vertical"
             android:padding="12dp">
 
-            <RelativeLayout
+            <TextView
+                android:id="@+id/tvDonationTitle"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <TextView
-                    android:id="@+id/tvDonationTitle"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_toStartOf="@+id/btnMessageDonor"
-                    android:text="Item Title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-
-                <ImageButton
-                    android:id="@+id/btnMessageDonor"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:layout_alignParentEnd="true"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@android:drawable/stat_notify_chat"
-                    android:tint="@color/green_primary"
-                    android:contentDescription="Message Donor" />
-
-            </RelativeLayout>
+                android:layout_height="wrap_content"
+                android:text="Item Title"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/tvDonationDescription"

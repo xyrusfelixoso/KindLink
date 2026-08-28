@@ -59,6 +59,9 @@ public class MyDonationsActivity extends AppCompatActivity {
                 for (DataSnapshot postSnapshot : snapshot.getChildren()) {
                     Donation donation = postSnapshot.getValue(Donation.class);
                     if (donation != null) {
+                        if (donation.getDonationId() == null) {
+                            donation.setDonationId(postSnapshot.getKey());
+                        }
                         donationList.add(donation);
                     }
                 }

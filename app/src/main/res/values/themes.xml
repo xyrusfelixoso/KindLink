@@ -69,6 +69,19 @@
         <item name="android:textColor">@color/tag_blue_text</item>
     </style>
 
+    <!-- Filter chip -->
+    <style name="Widget.Humania.FilterChip" parent="Widget">
+        <item name="android:background">@drawable/bg_chip</item>
+        <item name="android:paddingStart">@dimen/spacing_md</item>
+        <item name="android:paddingEnd">@dimen/spacing_md</item>
+        <item name="android:paddingTop">@dimen/spacing_sm</item>
+        <item name="android:paddingBottom">@dimen/spacing_sm</item>
+        <item name="android:textColor">@color/selector_chip_text</item>
+        <item name="android:textSize">@dimen/text_sm</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
     <!-- Section title -->
     <style name="Widget.Humania.SectionTitle" parent="Widget">
         <item name="android:textSize">@dimen/text_lg</item>
@@ -90,6 +103,21 @@
         <item name="android:paddingBottom">14dp</item>
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
+    </style>
+
+    <!-- Settings styles -->
+    <style name="SettingsHeader">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingTop">24dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:textColor">@color/green_primary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="android:textAllCaps">true</item>
     </style>
 
     <!-- Splashscreen style referenced in Manifest -->

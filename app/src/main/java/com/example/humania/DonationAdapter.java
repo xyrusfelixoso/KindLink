@@ -10,6 +10,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import android.util.Base64;
 import com.bumptech.glide.Glide;
 import java.util.List;
 
@@ -46,9 +47,8 @@ public class DonationAdapter extends RecyclerView.Adapter<DonationAdapter.Donati
     }
 
     static class DonationViewHolder extends RecyclerView.ViewHolder {
-        TextView tvTitle, tvDescription, tvMeta, tvTagCategory, tvDistance, tvEmoji, tvDonor;
+        TextView tvTitle, tvDescription, tvMeta, tvTagCategory, tvTagUrgency, tvDistance, tvEmoji, tvDonor;
         ImageView ivImage;
-        ImageButton btnMessage;
 
         public DonationViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -56,11 +56,11 @@ public class DonationAdapter extends RecyclerView.Adapter<DonationAdapter.Donati
             tvDescription = itemView.findViewById(R.id.tvDonationDescription);
             tvMeta = itemView.findViewById(R.id.tvDonationMeta);
             tvTagCategory = itemView.findViewById(R.id.tvTagCategory);
+            tvTagUrgency = itemView.findViewById(R.id.tvTagUrgency);
             tvDistance = itemView.findViewById(R.id.tvDistance);
             tvEmoji = itemView.findViewById(R.id.tvDonationEmoji);
             tvDonor = itemView.findViewById(R.id.tvDonationDonor);
             ivImage = itemView.findViewById(R.id.ivDonationImage);
-            btnMessage = itemView.findViewById(R.id.btnMessageDonor);
         }
 
         public void bind(Donation donation, OnItemClickListener listener) {
@@ -72,14 +72,30 @@ public class DonationAdapter extends RecyclerView.Adapter<DonationAdapter.Donati
             tvDistance.setText(donation.getLocation());
             tvDonor.setText("By: " + (donation.getDonorName() != null ? donation.getDonorName() : "Anonymous"));
 
-            // Load Image with Glide
+            // Load Image with Glide (Supports URL, Local Path, and Base64)
             if (donation.getPhotoPath() != null && !donation.getPhotoPath().isEmpty()) {
                 ivImage.setVisibility(View.VISIBLE);
                 tvEmoji.setVisibility(View.GONE);
-                Glide.with(context)
-                        .load(donation.getPhotoPath())
-                        .placeholder(R.drawable.bg_gradient_card_image)
-                        .into(ivImage);
+                
+                String path = donation.getPhotoPath();
+                if (path.startsWith("http") || path.startsWith("/")) {
+                    Glide.with(context)
+                            .load(path)
+                            .placeholder(R.drawable.bg_gradient_card_image)
+                            .into(ivImage);
+                } else {
+                    // Assume Base64
+                    try {
+                        byte[] imageBytes = Base64.decode(path, Base64.DEFAULT);
+                        Glide.with(context)
+                                .load(imageBytes)
+                                .placeholder(R.drawable.bg_gradient_card_image)
+                                .into(ivImage);
+                    } catch (Exception e) {
+                        ivImage.setVisibility(View.GONE);
+                        tvEmoji.setVisibility(View.VISIBLE);
+                    }
+                }
             } else {
                 ivImage.setVisibility(View.GONE);
                 tvEmoji.setVisibility(View.VISIBLE);
@@ -90,18 +106,20 @@ public class DonationAdapter extends RecyclerView.Adapter<DonationAdapter.Donati
                     else if (cat.contains("clothes")) tvEmoji.setText("👕");
                     else if (cat.contains("toys")) tvEmoji.setText("🧸");
                     else if (cat.contains("items")) tvEmoji.setText("📦");
+                    else if (cat.contains("electronics")) tvEmoji.setText("📱");
+                    else if (cat.contains("tools")) tvEmoji.setText("🛠️");
                     else tvEmoji.setText("🎁");
                 }
             }
 
-            btnMessage.setOnClickListener(v -> {
-                if (donation.getUserId() != null) {
-                    Intent intent = new Intent(context, ChatActivity.class);
-                    intent.putExtra("otherUserId", donation.getUserId());
-                    intent.putExtra("donorName", donation.getDonorName());
-                    context.startActivity(intent);
-                }
-            });
+            // Expiry Status Tag
+            if (DateUtils.isExpired(donation.getExpiryDate())) {
+                tvTagUrgency.setText("EXPIRED");
+                tvTagUrgency.setBackgroundResource(R.drawable.bg_tag_orange);
+            } else {
+                tvTagUrgency.setText("Active");
+                tvTagUrgency.setBackgroundResource(R.drawable.bg_tag_green);
+            }
 
             itemView.setOnClickListener(v -> listener.onItemClick(donation));
         }

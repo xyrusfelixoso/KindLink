@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.example.humania" />
+                  <option name="mobileSdkAppId" value="1:399242504058:android:45377a4638346193d718c3" />
+                  <option name="projectId" value="humania-942a7" />
+                  <option name="projectNumber" value="399242504058" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

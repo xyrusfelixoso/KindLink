@@ -58,8 +58,10 @@ public class BrowseActivity extends AppCompatActivity {
                     return true;
                 } else if (id == R.id.nav_browse) {
                     return true;
-                } else if (id == R.id.nav_messages) {
-                    startActivity(new Intent(this, MessageListActivity.class));
+                } else if (id == R.id.nav_map) {
+                    Intent intent = new Intent(this, DashboardActivity.class);
+                    intent.putExtra("OPEN_MAP", true);
+                    startActivity(intent);
                     finish();
                     return true;
                 } else if (id == R.id.nav_profile) {

@@ -88,9 +88,9 @@ public class ReviewActivity extends AppCompatActivity {
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 User user = snapshot.getValue(User.class);
                 if (user != null) {
-                    float currentRating = user.rating;
+                    double currentRating = user.rating;
                     int count = user.reviewCount;
-                    float updatedRating = ((currentRating * count) + newRatingValue) / (count + 1);
+                    double updatedRating = ((currentRating * count) + newRatingValue) / (count + 1);
                     
                     userRef.child("rating").setValue(updatedRating);
                     userRef.child("reviewCount").setValue(count + 1);

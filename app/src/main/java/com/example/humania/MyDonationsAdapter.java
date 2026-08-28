@@ -6,8 +6,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.util.Base64;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import com.bumptech.glide.Glide;
 import java.io.File;
 import java.util.List;
 
@@ -31,20 +33,32 @@ public class MyDonationsAdapter extends RecyclerView.Adapter<MyDonationsAdapter.
         Donation donation = donations.get(position);
         holder.tvTitle.setText(donation.getTitle());
         holder.tvDescription.setText(donation.getDescription());
-        holder.tvMeta.setText("By " + donation.getDonorName() + " • " + donation.getTimestamp());
+        holder.tvMeta.setText("By " + donation.getDonorName() + " • " + (donation.getTimestamp() != null ? donation.getTimestamp() : "Recently"));
         holder.tvCategory.setText(getEmojiForCategory(donation.getCategory()) + " " + donation.getCategory());
         
-        // Handle Photo display
-        if (donation.getPhotoPath() != null && !donation.getPhotoPath().isEmpty()) {
-            File imgFile = new File(donation.getPhotoPath());
-            if (imgFile.exists()) {
-                holder.ivDonationImage.setVisibility(View.VISIBLE);
-                holder.tvEmoji.setVisibility(View.GONE);
-                holder.ivDonationImage.setImageURI(Uri.fromFile(imgFile));
+        // Handle Photo display (Supports Base64 and Path/URL)
+        String path = donation.getPhotoPath();
+        if (path != null && !path.isEmpty()) {
+            holder.ivDonationImage.setVisibility(View.VISIBLE);
+            holder.tvEmoji.setVisibility(View.GONE);
+            
+            if (path.startsWith("http") || path.startsWith("/")) {
+                Glide.with(holder.itemView.getContext())
+                        .load(path)
+                        .placeholder(R.drawable.bg_gradient_card_image)
+                        .into(holder.ivDonationImage);
             } else {
-                holder.ivDonationImage.setVisibility(View.GONE);
-                holder.tvEmoji.setVisibility(View.VISIBLE);
-                holder.tvEmoji.setText(getEmojiForCategory(donation.getCategory()));
+                // Base64
+                try {
+                    byte[] imageBytes = Base64.decode(path, Base64.DEFAULT);
+                    Glide.with(holder.itemView.getContext())
+                            .load(imageBytes)
+                            .placeholder(R.drawable.bg_gradient_card_image)
+                            .into(holder.ivDonationImage);
+                } catch (Exception e) {
+                    holder.ivDonationImage.setVisibility(View.GONE);
+                    holder.tvEmoji.setVisibility(View.VISIBLE);
+                }
             }
         } else {
             holder.ivDonationImage.setVisibility(View.GONE);
@@ -52,8 +66,14 @@ public class MyDonationsAdapter extends RecyclerView.Adapter<MyDonationsAdapter.
             holder.tvEmoji.setText(getEmojiForCategory(donation.getCategory()));
         }
         
-        // Display details
-        holder.tvUrgency.setText(donation.getQuantity() + " items");
+        // Expiry Status
+        if (DateUtils.isExpired(donation.getExpiryDate())) {
+            holder.tvUrgency.setText("EXPIRED");
+            holder.tvUrgency.setBackgroundResource(R.drawable.bg_tag_orange);
+        } else {
+            holder.tvUrgency.setText(donation.getQuantity() + " items");
+        }
+        
         holder.tvDistance.setText(donation.getLocation());
     }
 
@@ -63,12 +83,15 @@ public class MyDonationsAdapter extends RecyclerView.Adapter<MyDonationsAdapter.
     }
 
     private String getEmojiForCategory(String category) {
+        if (category == null) return "🎁";
         switch (category) {
             case "Food": return "🥦";
             case "Clothes": return "👕";
             case "Items": return "📦";
             case "Toys": return "🧸";
-            default: return "📦";
+            case "Electronics": return "📱";
+            case "Tools": return "🛠️";
+            default: return "🎁";
         }
     }
 

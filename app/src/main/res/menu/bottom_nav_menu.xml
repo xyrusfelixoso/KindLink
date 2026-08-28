@@ -18,9 +18,9 @@
         android:enabled="false" />
 
     <item
-        android:id="@+id/nav_messages"
-        android:icon="@drawable/ic_message"
-        android:title="Messages" />
+        android:id="@+id/nav_map"
+        android:icon="@drawable/ic_location"
+        android:title="Map" />
 
     <item
         android:id="@+id/nav_profile"

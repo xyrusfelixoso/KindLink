@@ -25,7 +25,7 @@ import java.util.List;
 
 public class ProfileActivity extends AppCompatActivity {
 
-    private TextView tvProfileName, tvProfileHandle, tvStatDonated;
+    private TextView tvProfileName, tvProfileHandle, tvStatDonated, tvProfileRating;
     private DatabaseReference mDatabase;
     private FirebaseAuth mAuth;
     private View sectionMyDonations;
@@ -53,6 +53,7 @@ public class ProfileActivity extends AppCompatActivity {
         tvProfileName = findViewById(R.id.tvProfileName);
         tvProfileHandle = findViewById(R.id.tvProfileHandle);
         tvStatDonated = findViewById(R.id.tvStatDonated);
+        tvProfileRating = findViewById(R.id.tvProfileRating);
         sectionMyDonations = findViewById(R.id.sectionMyDonations);
         rvMyDonations = findViewById(R.id.rvMyDonationsProfile);
 
@@ -67,10 +68,20 @@ public class ProfileActivity extends AppCompatActivity {
         }
 
         // Bug Fix: Assign correct labels to menu rows to prevent them all showing "My Donations"
-        setupMenuItem(findViewById(R.id.menuRequests), "My Requests", "Manage your requests", "🤝");
-        setupMenuItem(findViewById(R.id.menuMessages), "My Messages", "View conversations", "💬");
-        setupMenuItem(findViewById(R.id.menuReviews), "Reviews", "Feedback from others", "⭐");
-        setupMenuItem(findViewById(R.id.menuSettings), "Settings", "Account and security", "⚙️");
+        setupMenuItem(findViewById(R.id.menuRequests), "My Requests", "Manage your requests", "🤝", v -> {
+            startActivity(new Intent(this, MyRequestsActivity.class));
+        });
+        setupMenuItem(findViewById(R.id.menuMessages), "My Messages", "View conversations", "💬", v -> {
+            Toast.makeText(this, "Messages coming soon", Toast.LENGTH_SHORT).show();
+        });
+        setupMenuItem(findViewById(R.id.menuReviews), "Reviews", "Feedback from others", "⭐", v -> {
+            Intent intent = new Intent(this, ReviewListActivity.class);
+            intent.putExtra("targetUserId", mAuth.getUid());
+            startActivity(intent);
+        });
+        setupMenuItem(findViewById(R.id.menuSettings), "Settings", "Account and security", "⚙️", v -> {
+            startActivity(new Intent(this, SettingsActivity.class));
+        });
     }
 
     private void setupRecyclerView() {
@@ -95,6 +106,9 @@ public class ProfileActivity extends AppCompatActivity {
                         if (tvProfileName != null) tvProfileName.setText(user.fullName);
                         if (tvProfileHandle != null) tvProfileHandle.setText("@" + user.fullName.toLowerCase().replace(" ", "") + " · ✅ Verified");
                         if (tvStatDonated != null) tvStatDonated.setText(String.valueOf(user.totalDonations));
+                        if (tvProfileRating != null) {
+                            tvProfileRating.setText(String.format(java.util.Locale.getDefault(), "⭐ %.1f", user.rating));
+                        }
                     }
                 }
 
@@ -118,6 +132,9 @@ public class ProfileActivity extends AppCompatActivity {
                 for (DataSnapshot postSnapshot : snapshot.getChildren()) {
                     Donation donation = postSnapshot.getValue(Donation.class);
                     if (donation != null) {
+                        if (donation.getDonationId() == null) {
+                            donation.setDonationId(postSnapshot.getKey());
+                        }
                         donationList.add(0, donation); // Newest first
                     }
                 }
@@ -136,7 +153,7 @@ public class ProfileActivity extends AppCompatActivity {
         });
     }
 
-    private void setupMenuItem(View menu, String title, String subtitle, String icon) {
+    private void setupMenuItem(View menu, String title, String subtitle, String icon, View.OnClickListener listener) {
         if (menu != null) {
             TextView tvTitle = menu.findViewById(R.id.tvMenuTitle);
             TextView tvSubtitle = menu.findViewById(R.id.tvMenuSubtitle);
@@ -146,8 +163,7 @@ public class ProfileActivity extends AppCompatActivity {
             if (tvSubtitle != null) tvSubtitle.setText(subtitle);
             if (tvIcon != null) tvIcon.setText(icon);
 
-            menu.setOnClickListener(v -> 
-                Toast.makeText(this, title + " clicked", Toast.LENGTH_SHORT).show());
+            menu.setOnClickListener(listener);
         }
     }
 

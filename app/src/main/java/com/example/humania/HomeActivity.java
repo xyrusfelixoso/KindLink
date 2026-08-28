@@ -21,7 +21,7 @@ import java.util.List;
 
 public class HomeActivity extends AppCompatActivity {
 
-    private TextView tvUserName, tvHomeStatDonated, tvGlobalTotalDonations;
+    private TextView tvUserName, tvHomeStatDonated, tvGlobalTotalDonations, tvHomeRating;
     private DatabaseReference mDatabase;
     private FirebaseAuth mAuth;
     private RecyclerView rvNearYou;
@@ -40,6 +40,7 @@ public class HomeActivity extends AppCompatActivity {
         tvUserName = findViewById(R.id.tvUserName);
         tvHomeStatDonated = findViewById(R.id.tvHomeStatDonated);
         tvGlobalTotalDonations = findViewById(R.id.tvGlobalTotalDonations);
+        tvHomeRating = findViewById(R.id.tvHomeRating);
 
         // RecyclerView Setup
         rvNearYou = findViewById(R.id.rvNearYou);
@@ -95,11 +96,15 @@ public class HomeActivity extends AppCompatActivity {
                     if (user != null) {
                         if (tvUserName != null) tvUserName.setText(user.fullName);
                         if (tvHomeStatDonated != null) tvHomeStatDonated.setText(String.valueOf(user.totalDonations));
+                        if (tvHomeRating != null) {
+                            tvHomeRating.setText(String.format(java.util.Locale.getDefault(), "⭐ %.1f", user.rating));
+                        }
                     }
                 }
 
                 @Override
                 public void onCancelled(@NonNull DatabaseError error) {
+                    android.util.Log.e("HomeActivity", "User data error: " + error.getMessage());
                 }
             });
         }
@@ -115,7 +120,15 @@ public class HomeActivity extends AppCompatActivity {
                 for (DataSnapshot postSnapshot : snapshot.getChildren()) {
                     Donation donation = postSnapshot.getValue(Donation.class);
                     if (donation != null) {
-                        donationList.add(0, donation); // Add to top (newest first)
+                        // Ensure ID is set even if not in the DB record (fallback)
+                        if (donation.getDonationId() == null) {
+                            donation.setDonationId(postSnapshot.getKey());
+                        }
+                        
+                        // Only show if grace period (1 day after expiry) is not over
+                        if (!DateUtils.isGracePeriodOver(donation.getExpiryDate())) {
+                            donationList.add(0, donation); // Add to top (newest first)
+                        }
                         totalGlobalCount++;
                     }
                 }
@@ -153,8 +166,9 @@ public class HomeActivity extends AppCompatActivity {
                 } else if (id == R.id.nav_browse) {
                     intent = new Intent(this, BrowseActivity.class);
                     intent.putExtra("category", "All");
-                } else if (id == R.id.nav_messages) {
-                    intent = new Intent(this, MessageListActivity.class);
+                } else if (id == R.id.nav_map) {
+                    intent = new Intent(this, DashboardActivity.class);
+                    intent.putExtra("OPEN_MAP", true);
                 } else if (id == R.id.nav_profile) {
                     intent = new Intent(this, ProfileActivity.class);
                 }
@@ -176,6 +190,9 @@ public class HomeActivity extends AppCompatActivity {
         findViewById(R.id.chipClothes).setOnClickListener(v -> openBrowse("Clothes"));
         findViewById(R.id.chipItems).setOnClickListener(v -> openBrowse("Items"));
         findViewById(R.id.chipToys).setOnClickListener(v -> openBrowse("Toys"));
+        findViewById(R.id.chipElectronics).setOnClickListener(v -> openBrowse("Electronics"));
+        findViewById(R.id.chipTools).setOnClickListener(v -> openBrowse("Tools"));
+        findViewById(R.id.chipOther).setOnClickListener(v -> openBrowse("Other"));
     }
 
     private void openBrowse(String category) {

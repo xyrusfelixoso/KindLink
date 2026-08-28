@@ -58,6 +58,9 @@ public class HomeFragment extends Fragment {
         setupChip(view.findViewById(R.id.chipClothes), "Clothes");
         setupChip(view.findViewById(R.id.chipItems), "Items");
         setupChip(view.findViewById(R.id.chipToys), "Toys");
+        setupChip(view.findViewById(R.id.chipElectronics), "Electronics");
+        setupChip(view.findViewById(R.id.chipTools), "Tools");
+        setupChip(view.findViewById(R.id.chipOther), "Other");
 
         // See All
         view.findViewById(R.id.tvSeeAll).setOnClickListener(v -> 
@@ -88,7 +91,14 @@ public class HomeFragment extends Fragment {
                 for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
                     Donation donation = dataSnapshot.getValue(Donation.class);
                     if (donation != null) {
-                        donationList.add(donation);
+                        if (donation.getDonationId() == null) {
+                            donation.setDonationId(dataSnapshot.getKey());
+                        }
+                        
+                        // Only show if grace period (1 day after expiry) is not over
+                        if (!DateUtils.isGracePeriodOver(donation.getExpiryDate())) {
+                            donationList.add(donation);
+                        }
                     }
                 }
                 adapter.notifyDataSetChanged();
@@ -119,6 +129,9 @@ public class HomeFragment extends Fragment {
 
                 @Override
                 public void onCancelled(@NonNull DatabaseError error) {
+                    if (getContext() != null) {
+                        Toast.makeText(getContext(), "User data error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
                 }
             });
         }
@@ -136,6 +149,9 @@ public class HomeFragment extends Fragment {
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
+                if (getContext() != null) {
+                    android.util.Log.e("HomeFragment", "Global stats error: " + error.getMessage());
+                }
             }
         });
     }

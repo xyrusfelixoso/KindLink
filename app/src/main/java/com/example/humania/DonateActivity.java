@@ -47,7 +47,7 @@ public class DonateActivity extends AppCompatActivity {
     private ImageView ivPreview;
     private String currentPhotoPath;
     
-    private TextView catFood, catClothes, catItems, catToys;
+    private TextView catFood, catClothes, catItems, catToys, catElectronics, catTools, catOther;
     private EditText etTitle, etDescription, etQuantity, etExpiry, etLocation, etDonorName;
     private Button btnPostDonation;
     private String selectedCategory = "Food"; // Default
@@ -93,6 +93,9 @@ public class DonateActivity extends AppCompatActivity {
         catClothes = findViewById(R.id.catClothes);
         catItems = findViewById(R.id.catItems);
         catToys = findViewById(R.id.catToys);
+        catElectronics = findViewById(R.id.catElectronics);
+        catTools = findViewById(R.id.catTools);
+        catOther = findViewById(R.id.catOther);
         
         etDonorName = findViewById(R.id.etDonorName);
         etTitle = findViewById(R.id.etTitle);
@@ -125,6 +128,9 @@ public class DonateActivity extends AppCompatActivity {
         if (catClothes != null) catClothes.setOnClickListener(v -> selectCategory("Clothes", catClothes));
         if (catItems != null) catItems.setOnClickListener(v -> selectCategory("Items", catItems));
         if (catToys != null) catToys.setOnClickListener(v -> selectCategory("Toys", catToys));
+        if (catElectronics != null) catElectronics.setOnClickListener(v -> selectCategory("Electronics", catElectronics));
+        if (catTools != null) catTools.setOnClickListener(v -> selectCategory("Tools", catTools));
+        if (catOther != null) catOther.setOnClickListener(v -> selectCategory("Other", catOther));
 
         // Expiry Date Picker
         if (etExpiry != null) {
@@ -149,21 +155,12 @@ public class DonateActivity extends AppCompatActivity {
         selectedCategory = category;
         
         // Reset all categories to default style
-        if (catFood != null) {
-            catFood.setBackgroundResource(R.drawable.bg_chip);
-            catFood.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-        }
-        if (catClothes != null) {
-            catClothes.setBackgroundResource(R.drawable.bg_chip);
-            catClothes.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-        }
-        if (catItems != null) {
-            catItems.setBackgroundResource(R.drawable.bg_chip);
-            catItems.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-        }
-        if (catToys != null) {
-            catToys.setBackgroundResource(R.drawable.bg_chip);
-            catToys.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        TextView[] chips = {catFood, catClothes, catItems, catToys, catElectronics, catTools, catOther};
+        for (TextView chip : chips) {
+            if (chip != null) {
+                chip.setBackgroundResource(R.drawable.bg_chip);
+                chip.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+            }
         }
 
         // Apply active style to selected
@@ -181,9 +178,13 @@ public class DonateActivity extends AppCompatActivity {
 
         DatePickerDialog datePickerDialog = new DatePickerDialog(this,
                 (view, year1, monthOfYear, dayOfMonth) -> {
-                    String date = (monthOfYear + 1) + "/" + dayOfMonth + "/" + year1;
+                    // Use yyyy-MM-dd format for easy comparison
+                    String date = String.format(Locale.getDefault(), "%04d-%02d-%02d", year1, monthOfYear + 1, dayOfMonth);
                     etExpiry.setText(date);
                 }, year, month, day);
+        
+        // Restrict to today or future dates
+        datePickerDialog.getDatePicker().setMinDate(c.getTimeInMillis());
         datePickerDialog.show();
     }
 
@@ -200,14 +201,20 @@ public class DonateActivity extends AppCompatActivity {
             return;
         }
 
-        // Create donation object
+        // Prepare metadata
         String timestamp = new SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(new Date());
         String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
-        
-        Donation newDonation = new Donation(title, desc, qty, expiry, loc, selectedLat, selectedLng, selectedCategory, currentPhotoPath, timestamp, userId, donorName);
-        
+
         // Save donation to Firebase via DonationManager
         btnPostDonation.setEnabled(false);
+        
+        // Alternative way: Convert to Base64 to bypass Storage plan limits
+        String base64Image = DonationManager.encodeImageToBase64(currentPhotoPath);
+        
+        // Save to Database
+        Donation newDonation = new Donation(title, desc, qty, expiry, loc, selectedLat, selectedLng, 
+                selectedCategory, base64Image, timestamp, userId, donorName);
+
         DonationManager.addDonation(newDonation, (success, message) -> {
             btnPostDonation.setEnabled(true);
             if (success) {

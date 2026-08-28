@@ -27,13 +27,13 @@ import java.util.List;
 
 public class ProfileFragment extends Fragment {
 
-    private TextView tvProfileName, tvProfileHandle, tvStatDonated;
+    private TextView tvProfileName, tvProfileHandle, tvStatDonated, tvProfileRating;
     private DatabaseReference mDatabase;
     private FirebaseAuth mAuth;
-    private View sectionMyDonations;
-    private RecyclerView rvMyDonations;
-    private MyDonationsAdapter adapter;
-    private List<Donation> donationList;
+    private View sectionMyDonations, sectionExpiredItems;
+    private RecyclerView rvMyDonations, rvExpiredItems;
+    private MyDonationsAdapter adapter, expiredAdapter;
+    private List<Donation> donationList, expiredList;
 
     @Nullable
     @Override
@@ -47,8 +47,12 @@ public class ProfileFragment extends Fragment {
         tvProfileName = view.findViewById(R.id.tvProfileName);
         tvProfileHandle = view.findViewById(R.id.tvProfileHandle);
         tvStatDonated = view.findViewById(R.id.tvStatDonated);
+        tvProfileRating = view.findViewById(R.id.tvProfileRating);
         sectionMyDonations = view.findViewById(R.id.sectionMyDonations);
         rvMyDonations = view.findViewById(R.id.rvMyDonationsProfile);
+        
+        sectionExpiredItems = view.findViewById(R.id.sectionExpiredItems);
+        rvExpiredItems = view.findViewById(R.id.rvExpiredItems);
 
         // Sidebar/Drawer menu button
         View btnMenu = view.findViewById(R.id.btnOpenDrawer);
@@ -68,11 +72,27 @@ public class ProfileFragment extends Fragment {
             });
         }
 
-        // Initialize Menu Items with CORRECT labels to fix the "all My Donations" bug
-        setupMenuItem(view.findViewById(R.id.menuRequests), "My Requests", "Manage your requests", "🤝");
-        setupMenuItem(view.findViewById(R.id.menuMessages), "My Messages", "View conversations", "💬");
-        setupMenuItem(view.findViewById(R.id.menuReviews), "Reviews", "Feedback from others", "⭐");
-        setupMenuItem(view.findViewById(R.id.menuSettings), "Settings", "Account and security", "⚙️");
+        // Initialize Menu Items with CORRECT labels
+        setupMenuItem(view.findViewById(R.id.menuRequests), "My Requests", "Manage your requests", "🤝", v -> {
+            startActivity(new Intent(getActivity(), MyRequestsActivity.class));
+        });
+        setupMenuItem(view.findViewById(R.id.menuMessages), "Donation Requests", "Approve or decline requests", "📦", v -> {
+            startActivity(new Intent(getActivity(), ManageRequestsActivity.class));
+        });
+        setupMenuItem(view.findViewById(R.id.menuReviews), "Reviews", "Feedback from others", "⭐", v -> {
+            Intent intent = new Intent(getActivity(), ReviewListActivity.class);
+            intent.putExtra("targetUserId", mAuth.getUid());
+            startActivity(intent);
+        });
+        setupMenuItem(view.findViewById(R.id.menuSettings), "Settings", "Account and security", "⚙️", v -> {
+            startActivity(new Intent(getActivity(), SettingsActivity.class));
+        });
+        setupMenuItem(view.findViewById(R.id.menuLogout), "Log Out", "Exit your account", "🚪", v -> {
+            mAuth.signOut();
+            Intent intent = new Intent(getActivity(), MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+        });
 
         setupRecyclerView();
         loadUserData();
@@ -89,6 +109,14 @@ public class ProfileFragment extends Fragment {
             rvMyDonations.setAdapter(adapter);
             rvMyDonations.setNestedScrollingEnabled(false);
         }
+
+        expiredList = new ArrayList<>();
+        expiredAdapter = new MyDonationsAdapter(expiredList);
+        if (rvExpiredItems != null) {
+            rvExpiredItems.setLayoutManager(new LinearLayoutManager(getContext()));
+            rvExpiredItems.setAdapter(expiredAdapter);
+            rvExpiredItems.setNestedScrollingEnabled(false);
+        }
     }
 
     private void loadUserData() {
@@ -103,11 +131,18 @@ public class ProfileFragment extends Fragment {
                         if (tvProfileName != null) tvProfileName.setText(user.fullName);
                         if (tvProfileHandle != null) tvProfileHandle.setText("@" + user.fullName.toLowerCase().replace(" ", "") + " · ✅ Verified");
                         if (tvStatDonated != null) tvStatDonated.setText(String.valueOf(user.totalDonations));
+                        if (tvProfileRating != null) {
+                            tvProfileRating.setText(String.format(java.util.Locale.getDefault(), "⭐ %.1f", user.rating));
+                        }
                     }
                 }
 
                 @Override
-                public void onCancelled(@NonNull DatabaseError error) {}
+                public void onCancelled(@NonNull DatabaseError error) {
+                    if (getContext() != null) {
+                        Toast.makeText(getContext(), "Profile data error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                }
             });
         }
     }
@@ -123,28 +158,49 @@ public class ProfileFragment extends Fragment {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 donationList.clear();
+                expiredList.clear();
                 for (DataSnapshot postSnapshot : snapshot.getChildren()) {
                     Donation donation = postSnapshot.getValue(Donation.class);
                     if (donation != null) {
-                        donationList.add(0, donation); // Newest first
+                        if (donation.getDonationId() == null) {
+                            donation.setDonationId(postSnapshot.getKey());
+                        }
+                        
+                        if (DateUtils.isGracePeriodOver(donation.getExpiryDate())) {
+                            expiredList.add(0, donation);
+                        } else {
+                            donationList.add(0, donation); // Newest first
+                        }
                     }
                 }
 
-                // Bug Fix: Only show the "My Donations" section if the user has actually donated items ("mao ray mo gawas")
+                // Show/Hide Active Donations
                 if (donationList.isEmpty()) {
                     if (sectionMyDonations != null) sectionMyDonations.setVisibility(View.GONE);
                 } else {
                     if (sectionMyDonations != null) sectionMyDonations.setVisibility(View.VISIBLE);
                     adapter.notifyDataSetChanged();
                 }
+
+                // Show/Hide Expired Donations
+                if (expiredList.isEmpty()) {
+                    if (sectionExpiredItems != null) sectionExpiredItems.setVisibility(View.GONE);
+                } else {
+                    if (sectionExpiredItems != null) sectionExpiredItems.setVisibility(View.VISIBLE);
+                    expiredAdapter.notifyDataSetChanged();
+                }
             }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
+            public void onCancelled(@NonNull DatabaseError error) {
+                if (getContext() != null) {
+                    android.util.Log.e("ProfileFragment", "My donations error: " + error.getMessage());
+                }
+            }
         });
     }
 
-    private void setupMenuItem(View menu, String title, String subtitle, String icon) {
+    private void setupMenuItem(View menu, String title, String subtitle, String icon, View.OnClickListener listener) {
         if (menu != null) {
             TextView tvTitle = menu.findViewById(R.id.tvMenuTitle);
             TextView tvSubtitle = menu.findViewById(R.id.tvMenuSubtitle);
@@ -154,8 +210,7 @@ public class ProfileFragment extends Fragment {
             if (tvSubtitle != null) tvSubtitle.setText(subtitle);
             if (tvIcon != null) tvIcon.setText(icon);
 
-            menu.setOnClickListener(v -> 
-                Toast.makeText(getContext(), title + " clicked", Toast.LENGTH_SHORT).show());
+            menu.setOnClickListener(listener);
         }
     }
 }

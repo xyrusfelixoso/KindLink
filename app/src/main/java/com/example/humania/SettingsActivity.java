@@ -1,21 +1,16 @@
 package com.example.humania;
 
+import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Button;
-import android.widget.EditText;
+import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
 
 public class SettingsActivity extends AppCompatActivity {
 
-    private EditText etUpdateName, etUpdatePassword;
-    private Button btnSaveSettings;
     private FirebaseAuth mAuth;
-    private DatabaseReference mDatabase;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -23,54 +18,71 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
 
         mAuth = FirebaseAuth.getInstance();
-        String databaseUrl = "https://humania-942a7-default-rtdb.asia-southeast1.firebasedatabase.app/";
-        mDatabase = FirebaseDatabase.getInstance(databaseUrl).getReference();
 
-        etUpdateName = findViewById(R.id.etUpdateName);
-        etUpdatePassword = findViewById(R.id.etUpdatePassword);
-        btnSaveSettings = findViewById(R.id.btnSaveSettings);
+        findViewById(R.id.btnBack).setOnClickListener(v -> finish());
 
-        loadCurrentUserData();
+        // Account
+        setupRow(R.id.itemEditProfile, "Edit Profile", v -> Toast.makeText(this, "Opening Edit Profile...", Toast.LENGTH_SHORT).show());
+        setupRow(R.id.itemChangePassword, "Change Password", v -> Toast.makeText(this, "Opening Password Settings...", Toast.LENGTH_SHORT).show());
+        setupRow(R.id.itemVerification, "Account Verification", v -> Toast.makeText(this, "Opening Verification...", Toast.LENGTH_SHORT).show());
 
-        btnSaveSettings.setOnClickListener(v -> saveSettings());
+        // Notifications
+        setupRow(R.id.itemNotifRequests, "Requests", null);
+        setupRow(R.id.itemNotifPickup, "Pickup Updates", null);
+        setupRow(R.id.itemNotifReviews, "Reviews", null);
+        setupRow(R.id.itemNotifAnnounce, "Announcements", null);
+
+        // Privacy
+        setupRow(R.id.itemPrivacyVisibility, "Profile Visibility", null);
+        setupRow(R.id.itemPrivacyLocation, "Location Privacy", null);
+        setupRow(R.id.itemPrivacyBlocked, "Blocked Users", null);
+        setupRow(R.id.itemPrivacySessions, "Active Sessions", null);
+
+        // Donation Prefs
+        setupRow(R.id.itemPrefRadius, "Donation Radius", null);
+        setupRow(R.id.itemPrefCategories, "Default Categories", null);
+        setupRow(R.id.itemPrefPickup, "Pickup Preferences", null);
+        setupRow(R.id.itemPrefAvailability, "Availability", null);
+
+        // Appearance
+        setupRow(R.id.itemApperTheme, "Theme", null);
+        setupRow(R.id.itemApperLang, "Language", null);
+        setupRow(R.id.itemApperTextSize, "Text Size", null);
+
+        // Data
+        setupRow(R.id.itemDataCache, "Clear Cache", v -> Toast.makeText(this, "Cache cleared", Toast.LENGTH_SHORT).show());
+
+        // Help
+        setupRow(R.id.itemHelpCenter, "Help Center", null);
+        setupRow(R.id.itemHelpReport, "Report a Problem", null);
+        setupRow(R.id.itemHelpContact, "Contact Support", null);
+
+        // About
+        setupRow(R.id.itemAboutPrivacy, "Privacy Policy", null);
+        setupRow(R.id.itemAboutTerms, "Terms & Conditions", null);
+        setupRow(R.id.itemAboutVersion, "App Version (1.0.0)", null);
+
+        // Account Actions
+        setupRow(R.id.itemActionLogout, "Log Out", v -> {
+            mAuth.signOut();
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+        });
+        setupRow(R.id.itemActionDelete, "Delete Account", v -> Toast.makeText(this, "Contact support to delete account", Toast.LENGTH_LONG).show());
     }
 
-    private void loadCurrentUserData() {
-        FirebaseUser user = mAuth.getCurrentUser();
-        if (user != null) {
-            mDatabase.child("users").child(user.getUid()).child("fullName").get().addOnCompleteListener(task -> {
-                if (task.isSuccessful() && task.getResult().getValue() != null) {
-                    etUpdateName.setText(task.getResult().getValue().toString());
-                }
-            });
-        }
-    }
-
-    private void saveSettings() {
-        String newName = etUpdateName.getText().toString().trim();
-        String newPassword = etUpdatePassword.getText().toString().trim();
-        FirebaseUser user = mAuth.getCurrentUser();
-
-        if (user == null) return;
-
-        if (!newName.isEmpty()) {
-            mDatabase.child("users").child(user.getUid()).child("fullName").setValue(newName);
-        }
-
-        if (!newPassword.isEmpty()) {
-            if (newPassword.length() < 6) {
-                Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show();
+    private void setupRow(int viewId, String title, View.OnClickListener listener) {
+        View row = findViewById(viewId);
+        if (row != null) {
+            TextView tvTitle = row.findViewById(R.id.tvSettingsTitle);
+            if (tvTitle != null) tvTitle.setText(title);
+            
+            if (listener != null) {
+                row.setOnClickListener(listener);
             } else {
-                user.updatePassword(newPassword).addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        Toast.makeText(this, "Password updated", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this, "Error updating password", Toast.LENGTH_SHORT).show();
-                    }
-                });
+                row.setOnClickListener(v -> Toast.makeText(this, title + " coming soon", Toast.LENGTH_SHORT).show());
             }
         }
-
-        Toast.makeText(this, "Profile updated successfully", Toast.LENGTH_SHORT).show();
     }
 }

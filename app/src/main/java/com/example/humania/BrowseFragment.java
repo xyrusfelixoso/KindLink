@@ -62,6 +62,9 @@ public class BrowseFragment extends Fragment {
                 for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
                     Donation donation = dataSnapshot.getValue(Donation.class);
                     if (donation != null) {
+                        if (donation.getDonationId() == null) {
+                            donation.setDonationId(dataSnapshot.getKey());
+                        }
                         donationList.add(donation);
                     }
                 }

@@ -3,55 +3,107 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
     android:background="@color/background">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="User Options"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="24dp"
-        android:textColor="@color/text_primary"/>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Full Name"
-        android:textSize="14sp"
-        android:layout_marginBottom="4dp"/>
-    <EditText
-        android:id="@+id/etUpdateName"
+    <!-- Header -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Full Name"
-        android:background="@drawable/bg_input"
-        android:padding="12dp"
-        android:layout_marginBottom="16dp"/>
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="56dp"
+        android:paddingBottom="20dp"
+        android:paddingHorizontal="24dp"
+        android:background="@color/surface"
+        android:elevation="2dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="New Password (optional)"
-        android:textSize="14sp"
-        android:layout_marginBottom="4dp"/>
-    <EditText
-        android:id="@+id/etUpdatePassword"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="New Password"
-        android:inputType="textPassword"
-        android:background="@drawable/bg_input"
-        android:padding="12dp"
-        android:layout_marginBottom="24dp"/>
+        <TextView
+            android:id="@+id/btnBack"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="←"
+            android:textColor="@color/green_primary"
+            android:textSize="22sp"
+            android:paddingEnd="16dp"
+            android:clickable="true"
+            android:focusable="true" />
 
-    <Button
-        android:id="@+id/btnSaveSettings"
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:textColor="@color/text_primary"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:fontFamily="serif" />
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Save Changes"
-        android:backgroundTint="@color/green_primary"
-        android:textColor="@android:color/white"/>
+        android:layout_height="match_parent"
+        android:overScrollMode="never">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="40dp">
+
+            <!-- Section: Account -->
+            <TextView style="@style/SettingsHeader" android:text="Account" />
+            <include android:id="@+id/itemEditProfile" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemChangePassword" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemVerification" layout="@layout/item_settings_row" />
+
+            <!-- Section: Notifications -->
+            <TextView style="@style/SettingsHeader" android:text="Notifications" />
+            <include android:id="@+id/itemNotifRequests" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemNotifPickup" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemNotifReviews" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemNotifAnnounce" layout="@layout/item_settings_row" />
+
+            <!-- Section: Privacy & Security -->
+            <TextView style="@style/SettingsHeader" android:text="Privacy &amp; Security" />
+            <include android:id="@+id/itemPrivacyVisibility" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemPrivacyLocation" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemPrivacyBlocked" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemPrivacySessions" layout="@layout/item_settings_row" />
+
+            <!-- Section: Donation Preferences -->
+            <TextView style="@style/SettingsHeader" android:text="Donation Preferences" />
+            <include android:id="@+id/itemPrefRadius" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemPrefCategories" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemPrefPickup" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemPrefAvailability" layout="@layout/item_settings_row" />
+
+            <!-- Section: Appearance -->
+            <TextView style="@style/SettingsHeader" android:text="Appearance" />
+            <include android:id="@+id/itemApperTheme" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemApperLang" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemApperTextSize" layout="@layout/item_settings_row" />
+
+            <!-- Section: Data & Storage -->
+            <TextView style="@style/SettingsHeader" android:text="Data &amp; Storage" />
+            <include android:id="@+id/itemDataCache" layout="@layout/item_settings_row" />
+
+            <!-- Section: Help & Support -->
+            <TextView style="@style/SettingsHeader" android:text="Help &amp; Support" />
+            <include android:id="@+id/itemHelpCenter" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemHelpReport" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemHelpContact" layout="@layout/item_settings_row" />
+
+            <!-- Section: About -->
+            <TextView style="@style/SettingsHeader" android:text="About" />
+            <include android:id="@+id/itemAboutPrivacy" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemAboutTerms" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemAboutVersion" layout="@layout/item_settings_row" />
+
+            <!-- Section: Account Actions -->
+            <TextView style="@style/SettingsHeader" android:text="Account Actions" />
+            <include android:id="@+id/itemActionLogout" layout="@layout/item_settings_row" />
+            <include android:id="@+id/itemActionDelete" layout="@layout/item_settings_row" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>

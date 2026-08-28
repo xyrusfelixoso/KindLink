@@ -46,14 +46,18 @@ public class DashboardActivity extends AppCompatActivity {
 
         // Set default fragment
         if (savedInstanceState == null) {
-            loadFragment(new HomeFragment(), R.id.nav_home);
+            if (getIntent().getBooleanExtra("OPEN_MAP", false)) {
+                loadFragment(new MapFragment(), R.id.nav_map);
+            } else {
+                loadFragment(new HomeFragment(), R.id.nav_home);
+            }
         }
 
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_home) return loadFragment(new HomeFragment(), id);
             if (id == R.id.nav_browse) return loadFragment(new BrowseFragment(), id);
-            if (id == R.id.nav_messages) return loadFragment(new MessagesFragment(), id);
+            if (id == R.id.nav_map) return loadFragment(new MapFragment(), id);
             if (id == R.id.nav_profile) return loadFragment(new ProfileFragment(), id);
             return false;
         });
@@ -95,6 +99,7 @@ public class DashboardActivity extends AppCompatActivity {
 
                 @Override
                 public void onCancelled(@NonNull DatabaseError error) {
+                    android.util.Log.e("DashboardActivity", "Side nav header error: " + error.getMessage());
                 }
             });
         }

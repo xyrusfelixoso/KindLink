@@ -87,7 +87,7 @@ public class ReviewListActivity extends AppCompatActivity {
                 User user = snapshot.getValue(User.class);
                 if (user != null) {
                     tvAverageRating.setText(String.format(Locale.getDefault(), "%.1f", user.rating));
-                    summaryRatingBar.setRating(user.rating);
+                    summaryRatingBar.setRating((float) user.rating);
                     tvTotalReviews.setText(String.format(Locale.getDefault(), "Based on %d reviews", user.reviewCount));
                 }
             }

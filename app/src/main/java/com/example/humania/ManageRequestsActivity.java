@@ -1,6 +1,7 @@
 package com.example.humania;
 
 import android.os.Bundle;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -34,6 +35,11 @@ public class ManageRequestsActivity extends AppCompatActivity {
 
         rvManageRequests = findViewById(R.id.rvMyRequests);
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
+        
+        TextView tvTitle = findViewById(R.id.tvToolbarTitle);
+        if (tvTitle != null) {
+            tvTitle.setText("Donation Requests");
+        }
 
         setupRecyclerView();
         loadIncomingRequests();

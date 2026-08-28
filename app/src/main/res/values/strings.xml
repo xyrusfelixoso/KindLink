@@ -1,40 +1,20 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Humania</string>
-    <string name="tagline">give what you can</string>
-    <string name="get_started">Get Started</string>
-    <string name="i_want_to_donate">I want to donate 🎁</string>
-    <string name="i_need_help">I need help 🙏</string>
-    <string name="i_am_org">I\'m an organization 🏢</string>
-    <string name="good_morning">Good morning,</string>
-    <string name="near_you">Near You</string>
-    <string name="see_all">See all →</string>
-    <string name="post_donation">Post a Donation</string>
-    <string name="help_someone">Help someone today</string>
-    <string name="add_photos">Add Photos</string>
-    <string name="tap_to_upload">Tap to upload up to 5 photos</string>
-    <string name="category">Category</string>
-    <string name="title_hint">e.g. Fresh vegetables bundle</string>
-    <string name="description_hint">Describe what you\'re donating…</string>
-    <string name="quantity_hint">e.g. 2 bags, 5 items</string>
-    <string name="pickup_location_hint">📍 Your address or public meet point</string>
-    <string name="post_donation_btn">🎁 Post Donation</string>
-    <string name="request_pickup">Request Pickup</string>
-    <string name="chat">💬 Chat</string>
-    <string name="nav_home">Home</string>
-    <string name="nav_browse">Browse</string>
-    <string name="nav_messages">Messages</string>
-    <string name="nav_profile">Profile</string>
-
-    <!-- Home Fragment Strings -->
-    <string name="user_name_default">Maria 👋</string>
+    <string name="good_morning">Good Morning,</string>
+    <string name="user_name_default">Juan Dela Cruz</string>
     <string name="stat_donated">DONATED</string>
-    <string name="stat_helped">HELPED</string>
     <string name="stat_rating">RATING</string>
-    <string name="default_avatar_emoji">😊</string>
-    <string name="chip_all">🌿 All</string>
+    <string name="default_avatar_emoji">👨</string>
+    <string name="chip_all">All</string>
     <string name="chip_food">🥦 Food</string>
     <string name="chip_clothes">👕 Clothes</string>
     <string name="chip_items">📦 Items</string>
     <string name="chip_toys">🧸 Toys</string>
+    <string name="chip_electronics">📱 Electronics</string>
+    <string name="chip_tools">🛠️ Tools</string>
+    <string name="chip_other">🎁 Other</string>
+    <string name="near_you">Near You</string>
+    <string name="see_all">See All</string>
+    <string name="tagline">GIVE. RECEIVE. CONNECT.</string>
+    <string name="get_started">GET STARTED</string>
 </resources>

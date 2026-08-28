@@ -10,6 +10,8 @@ public class Review implements Serializable {
     private float rating;
     private String comment;
     private String timestamp;
+    private String donationTitle;
+    private String reviewerProfileImage;
 
     public Review() {}
 
@@ -23,6 +25,12 @@ public class Review implements Serializable {
         this.timestamp = timestamp;
     }
 
+    public Review(String reviewId, String reviewerId, String reviewerName, String targetUserId, float rating, String comment, String timestamp, String donationTitle, String reviewerProfileImage) {
+        this(reviewId, reviewerId, reviewerName, targetUserId, rating, comment, timestamp);
+        this.donationTitle = donationTitle;
+        this.reviewerProfileImage = reviewerProfileImage;
+    }
+
     public String getReviewId() { return reviewId; }
     public String getReviewerId() { return reviewerId; }
     public String getReviewerName() { return reviewerName; }
@@ -30,4 +38,6 @@ public class Review implements Serializable {
     public float getRating() { return rating; }
     public String getComment() { return comment; }
     public String getTimestamp() { return timestamp; }
+    public String getDonationTitle() { return donationTitle; }
+    public String getReviewerProfileImage() { return reviewerProfileImage; }
 }

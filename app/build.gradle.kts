@@ -34,13 +34,16 @@ android {
 
 dependencies {
     implementation(platform(libs.firebase.bom))
-    
+    implementation(libs.credentials)
+    implementation(libs.credentials.play.services.auth)
+
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.auth)
     implementation(libs.firebase.database)
     implementation(libs.firebase.storage)
 
     implementation(libs.glide)
+    implementation(libs.googleid)
     annotationProcessor(libs.glide) // Note: Glide usually needs an annotation processor for Java
 
     implementation(libs.appcompat)
