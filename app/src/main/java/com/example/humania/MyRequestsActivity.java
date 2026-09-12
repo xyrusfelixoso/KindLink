@@ -42,9 +42,37 @@ public class MyRequestsActivity extends AppCompatActivity {
     private void setupRecyclerView() {
         requestList = new ArrayList<>();
         // In "My Requests", we are the requester, so isDonorView is false
-        adapter = new PickupRequestAdapter(requestList, false, null);
+        adapter = new PickupRequestAdapter(requestList, false, new PickupRequestAdapter.OnRequestActionListener() {
+            @Override
+            public void onApprove(PickupRequest request) {}
+
+            @Override
+            public void onReject(PickupRequest request) {}
+
+            @Override
+            public void onConfirmPickup(PickupRequest request) {
+                handlePickupConfirmation(request);
+            }
+
+            @Override
+            public void onDeleteRequest(PickupRequest request) {
+                if (request == null) return;
+                mDatabase.child("pickupRequests").child(request.getRequestId()).removeValue()
+                        .addOnSuccessListener(aVoid -> Toast.makeText(MyRequestsActivity.this, "Request removed from your list.", Toast.LENGTH_SHORT).show());
+            }
+        });
         rvMyRequests.setLayoutManager(new LinearLayoutManager(this));
         rvMyRequests.setAdapter(adapter);
+    }
+
+    private void handlePickupConfirmation(PickupRequest request) {
+        // 1. Update Request status to COMPLETED
+        mDatabase.child("pickupRequests").child(request.getRequestId()).child("status").setValue("COMPLETED")
+                .addOnSuccessListener(aVoid -> {
+                    // 2. Update Donation status to COMPLETED
+                    mDatabase.child("donations").child(request.getDonationId()).child("status").setValue("COMPLETED");
+                    Toast.makeText(this, "Pickup confirmed! Item is now removed from public feed.", Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void loadMyRequests() {

@@ -21,6 +21,8 @@ public class PickupRequestAdapter extends RecyclerView.Adapter<PickupRequestAdap
     public interface OnRequestActionListener {
         void onApprove(PickupRequest request);
         void onReject(PickupRequest request);
+        void onConfirmPickup(PickupRequest request);
+        void onDeleteRequest(PickupRequest request);
     }
 
     public PickupRequestAdapter(List<PickupRequest> requestList, boolean isDonorView, OnRequestActionListener listener) {
@@ -52,12 +54,56 @@ public class PickupRequestAdapter extends RecyclerView.Adapter<PickupRequestAdap
                     .into(holder.ivItemImage);
         }
 
-        if (isDonorView && "PENDING".equals(request.getStatus())) {
-            holder.layoutActions.setVisibility(View.VISIBLE);
-            holder.btnApprove.setOnClickListener(v -> listener.onApprove(request));
-            holder.btnReject.setOnClickListener(v -> listener.onReject(request));
+        if (isDonorView) {
+            if ("PENDING".equals(request.getStatus())) {
+                holder.layoutActions.setVisibility(View.VISIBLE);
+                holder.btnApprove.setVisibility(View.VISIBLE);
+                holder.btnReject.setVisibility(View.VISIBLE);
+                holder.btnApprove.setText("Approve");
+                holder.btnApprove.setOnClickListener(v -> listener.onApprove(request));
+                holder.btnReject.setOnClickListener(v -> listener.onReject(request));
+            } else if ("APPROVED".equals(request.getStatus()) || "COMPLETED".equals(request.getStatus()) || 
+                    "REJECTED".equals(request.getStatus()) || "CANCELED".equals(request.getStatus()) || "CANCELLED".equals(request.getStatus())) {
+                holder.layoutActions.setVisibility(View.VISIBLE);
+                holder.btnApprove.setVisibility(View.VISIBLE);
+                holder.btnApprove.setText("Remove Listing");
+                holder.btnReject.setVisibility(View.GONE);
+                holder.btnApprove.setOnClickListener(v -> {
+                    if (listener != null) listener.onDeleteRequest(request);
+                });
+            } else {
+                holder.layoutActions.setVisibility(View.GONE);
+            }
         } else {
-            holder.layoutActions.setVisibility(View.GONE);
+            // Requester View
+            if ("APPROVED".equals(request.getStatus())) {
+                holder.layoutActions.setVisibility(View.VISIBLE);
+                holder.btnApprove.setVisibility(View.VISIBLE);
+                holder.btnApprove.setText("I picked this up");
+                holder.btnReject.setVisibility(View.GONE);
+                holder.btnApprove.setOnClickListener(v -> {
+                    if (listener != null) listener.onConfirmPickup(request);
+                });
+            } else if ("PENDING".equals(request.getStatus())) {
+                holder.layoutActions.setVisibility(View.VISIBLE);
+                holder.btnApprove.setVisibility(View.VISIBLE);
+                holder.btnApprove.setText("Cancel Request");
+                holder.btnReject.setVisibility(View.GONE);
+                holder.btnApprove.setOnClickListener(v -> {
+                    if (listener != null) listener.onDeleteRequest(request);
+                });
+            } else if ("COMPLETED".equals(request.getStatus()) || "REJECTED".equals(request.getStatus()) || 
+                    "CANCELED".equals(request.getStatus()) || "CANCELLED".equals(request.getStatus())) {
+                holder.layoutActions.setVisibility(View.VISIBLE);
+                holder.btnApprove.setVisibility(View.VISIBLE);
+                holder.btnApprove.setText("Remove Request");
+                holder.btnReject.setVisibility(View.GONE);
+                holder.btnApprove.setOnClickListener(v -> {
+                    if (listener != null) listener.onDeleteRequest(request);
+                });
+            } else {
+                holder.layoutActions.setVisibility(View.GONE);
+            }
         }
     }
 

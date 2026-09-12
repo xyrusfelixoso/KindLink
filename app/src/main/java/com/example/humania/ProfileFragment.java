@@ -27,7 +27,7 @@ import java.util.List;
 
 public class ProfileFragment extends Fragment {
 
-    private TextView tvProfileName, tvProfileHandle, tvStatDonated, tvProfileRating;
+    private TextView tvProfileName, tvProfileHandle, tvStatDonated, tvStatHelped, tvProfileRating;
     private DatabaseReference mDatabase;
     private FirebaseAuth mAuth;
     private View sectionMyDonations, sectionExpiredItems;
@@ -47,22 +47,13 @@ public class ProfileFragment extends Fragment {
         tvProfileName = view.findViewById(R.id.tvProfileName);
         tvProfileHandle = view.findViewById(R.id.tvProfileHandle);
         tvStatDonated = view.findViewById(R.id.tvStatDonated);
+        tvStatHelped = view.findViewById(R.id.tvStatHelped);
         tvProfileRating = view.findViewById(R.id.tvProfileRating);
         sectionMyDonations = view.findViewById(R.id.sectionMyDonations);
         rvMyDonations = view.findViewById(R.id.rvMyDonationsProfile);
         
         sectionExpiredItems = view.findViewById(R.id.sectionExpiredItems);
         rvExpiredItems = view.findViewById(R.id.rvExpiredItems);
-
-        // Sidebar/Drawer menu button
-        View btnMenu = view.findViewById(R.id.btnOpenDrawer);
-        if (btnMenu != null) {
-            btnMenu.setOnClickListener(v -> {
-                if (getActivity() instanceof DashboardActivity) {
-                    ((DashboardActivity) getActivity()).openDrawer();
-                }
-            });
-        }
 
         // See All Donations link
         View tvSeeAll = view.findViewById(R.id.tvSeeAllDonations);
@@ -131,6 +122,7 @@ public class ProfileFragment extends Fragment {
                         if (tvProfileName != null) tvProfileName.setText(user.fullName);
                         if (tvProfileHandle != null) tvProfileHandle.setText("@" + user.fullName.toLowerCase().replace(" ", "") + " · ✅ Verified");
                         if (tvStatDonated != null) tvStatDonated.setText(String.valueOf(user.totalDonations));
+                        if (tvStatHelped != null) tvStatHelped.setText(String.valueOf(user.totalHelped));
                         if (tvProfileRating != null) {
                             tvProfileRating.setText(String.format(java.util.Locale.getDefault(), "⭐ %.1f", user.rating));
                         }

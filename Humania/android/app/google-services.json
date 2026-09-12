@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "982646246891",
+    "project_id": "humania-d6c36",
+    "storage_bucket": "humania-d6c36.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:982646246891:android:ef99698cdd6799dafe5dae",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArj-0jlbVgccZXmygjdZxBUTP80qvEBX0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

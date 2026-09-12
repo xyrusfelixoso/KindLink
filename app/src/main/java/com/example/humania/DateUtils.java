@@ -7,6 +7,7 @@ import java.util.Date;
 import java.util.Locale;
 
 public class DateUtils {
+    private static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm";
     private static final String DATE_FORMAT = "yyyy-MM-dd";
     private static final String OLD_DATE_FORMAT = "M/d/yyyy";
 
@@ -17,19 +18,7 @@ public class DateUtils {
     public static boolean isGracePeriodOver(String expiryDateStr) {
         if (expiryDateStr == null || expiryDateStr.isEmpty()) return false;
 
-        SimpleDateFormat sdf = new SimpleDateFormat(DATE_FORMAT, Locale.getDefault());
-        Date expiryDate = null;
-        try {
-            expiryDate = sdf.parse(expiryDateStr);
-        } catch (ParseException e) {
-            try {
-                SimpleDateFormat oldSdf = new SimpleDateFormat(OLD_DATE_FORMAT, Locale.getDefault());
-                expiryDate = oldSdf.parse(expiryDateStr);
-            } catch (ParseException e1) {
-                return false;
-            }
-        }
-
+        Date expiryDate = parseDate(expiryDateStr);
         if (expiryDate == null) return false;
 
         // Grace Period: 1 day after expiry
@@ -48,26 +37,49 @@ public class DateUtils {
     public static boolean isExpired(String expiryDateStr) {
         if (expiryDateStr == null || expiryDateStr.isEmpty()) return false;
 
-        SimpleDateFormat sdf = new SimpleDateFormat(DATE_FORMAT, Locale.getDefault());
-        Date expiryDate = null;
-        try {
-            expiryDate = sdf.parse(expiryDateStr);
-        } catch (ParseException e) {
-            try {
-                SimpleDateFormat oldSdf = new SimpleDateFormat(OLD_DATE_FORMAT, Locale.getDefault());
-                expiryDate = oldSdf.parse(expiryDateStr);
-            } catch (ParseException e1) {
-                return false;
-            }
-        }
-
+        Date expiryDate = parseDate(expiryDateStr);
         if (expiryDate == null) return false;
 
         Date today = new Date();
         return today.after(expiryDate);
     }
 
+    private static Date parseDate(String dateStr) {
+        String[] formats = {DATE_TIME_FORMAT, DATE_FORMAT, OLD_DATE_FORMAT};
+        for (String format : formats) {
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.getDefault());
+                return sdf.parse(dateStr);
+            } catch (ParseException ignored) {}
+        }
+        return null;
+    }
+
     public static String getTodayDate() {
         return new SimpleDateFormat(DATE_FORMAT, Locale.getDefault()).format(new Date());
+    }
+
+    /**
+     * Returns a human-readable "Time Left" string.
+     */
+    public static String getTimeLeft(String expiryDateStr) {
+        if (expiryDateStr == null || expiryDateStr.isEmpty()) return "";
+
+        Date expiryDate = parseDate(expiryDateStr);
+        if (expiryDate == null) return "";
+
+        long diff = expiryDate.getTime() - new Date().getTime();
+        if (diff <= 0) return "Expired";
+
+        long hours = diff / (1000 * 60 * 60);
+        long minutes = (diff / (1000 * 60)) % 60;
+
+        if (hours > 24) {
+            return (hours / 24) + "d left";
+        } else if (hours > 0) {
+            return hours + "h " + minutes + "m left";
+        } else {
+            return minutes + "m left";
+        }
     }
 }

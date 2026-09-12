@@ -67,7 +67,11 @@ public class DonationAdapter extends RecyclerView.Adapter<DonationAdapter.Donati
             Context context = itemView.getContext();
             tvTitle.setText(donation.getTitle());
             tvDescription.setText(donation.getDescription());
-            tvMeta.setText("Posted: " + (donation.getTimestamp() != null ? donation.getTimestamp() : "Just now"));
+            
+            String meta = "Expiry: " + (donation.getExpiryDate() != null ? donation.getExpiryDate() : "N/A") 
+                    + " • Posted: " + (donation.getTimestamp() != null ? donation.getTimestamp() : "Just now");
+            tvMeta.setText(meta);
+            
             tvTagCategory.setText(donation.getCategory());
             tvDistance.setText(donation.getLocation());
             tvDonor.setText("By: " + (donation.getDonorName() != null ? donation.getDonorName() : "Anonymous"));
@@ -112,12 +116,16 @@ public class DonationAdapter extends RecyclerView.Adapter<DonationAdapter.Donati
                 }
             }
 
-            // Expiry Status Tag
-            if (DateUtils.isExpired(donation.getExpiryDate())) {
+            // Status Tag
+            if (donation.getStatus() != null && !donation.getStatus().equalsIgnoreCase("AVAILABLE")) {
+                tvTagUrgency.setText(donation.getStatus());
+                tvTagUrgency.setBackgroundResource(R.drawable.bg_tag_orange);
+            } else if (DateUtils.isExpired(donation.getExpiryDate())) {
                 tvTagUrgency.setText("EXPIRED");
                 tvTagUrgency.setBackgroundResource(R.drawable.bg_tag_orange);
             } else {
-                tvTagUrgency.setText("Active");
+                String timeLeft = DateUtils.getTimeLeft(donation.getExpiryDate());
+                tvTagUrgency.setText(timeLeft.isEmpty() ? "Active" : timeLeft);
                 tvTagUrgency.setBackgroundResource(R.drawable.bg_tag_green);
             }
 

@@ -2,6 +2,7 @@ package com.example.humania;
 
 import android.Manifest;
 import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -178,14 +179,27 @@ public class DonateActivity extends AppCompatActivity {
 
         DatePickerDialog datePickerDialog = new DatePickerDialog(this,
                 (view, year1, monthOfYear, dayOfMonth) -> {
-                    // Use yyyy-MM-dd format for easy comparison
-                    String date = String.format(Locale.getDefault(), "%04d-%02d-%02d", year1, monthOfYear + 1, dayOfMonth);
-                    etExpiry.setText(date);
+                    // After picking date, pick time
+                    showTimePicker(year1, monthOfYear, dayOfMonth);
                 }, year, month, day);
         
         // Restrict to today or future dates
         datePickerDialog.getDatePicker().setMinDate(c.getTimeInMillis());
         datePickerDialog.show();
+    }
+
+    private void showTimePicker(int year, int month, int day) {
+        final Calendar c = Calendar.getInstance();
+        int hour = c.get(Calendar.HOUR_OF_DAY);
+        int minute = c.get(Calendar.MINUTE);
+
+        TimePickerDialog timePickerDialog = new TimePickerDialog(this,
+                (view, hourOfDay, minute1) -> {
+                    String dateTime = String.format(Locale.getDefault(), "%04d-%02d-%02d %02d:%02d", 
+                            year, month + 1, day, hourOfDay, minute1);
+                    etExpiry.setText(dateTime);
+                }, hour, minute, true);
+        timePickerDialog.show();
     }
 
     private void handlePostDonation() {
@@ -227,7 +241,7 @@ public class DonateActivity extends AppCompatActivity {
                         })
                         .show();
             } else {
-                Toast.makeText(this, "Failed to post donation: " + message, Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Failed to post donation: " + message, Toast.LENGTH_SHORT).show();
             }
         });
     }

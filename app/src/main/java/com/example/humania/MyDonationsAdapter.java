@@ -33,7 +33,11 @@ public class MyDonationsAdapter extends RecyclerView.Adapter<MyDonationsAdapter.
         Donation donation = donations.get(position);
         holder.tvTitle.setText(donation.getTitle());
         holder.tvDescription.setText(donation.getDescription());
-        holder.tvMeta.setText("By " + donation.getDonorName() + " • " + (donation.getTimestamp() != null ? donation.getTimestamp() : "Recently"));
+        
+        String meta = "Expiry: " + (donation.getExpiryDate() != null ? donation.getExpiryDate() : "N/A") 
+                + " • Posted: " + (donation.getTimestamp() != null ? donation.getTimestamp() : "Just now");
+        holder.tvMeta.setText(meta);
+        
         holder.tvCategory.setText(getEmojiForCategory(donation.getCategory()) + " " + donation.getCategory());
         
         // Handle Photo display (Supports Base64 and Path/URL)
@@ -66,12 +70,21 @@ public class MyDonationsAdapter extends RecyclerView.Adapter<MyDonationsAdapter.
             holder.tvEmoji.setText(getEmojiForCategory(donation.getCategory()));
         }
         
-        // Expiry Status
-        if (DateUtils.isExpired(donation.getExpiryDate())) {
+        // Expiry Status & Reservation Status
+        if (donation.getStatus() != null && !donation.getStatus().equalsIgnoreCase("AVAILABLE")) {
+            holder.tvUrgency.setText(donation.getStatus());
+            if (donation.getStatus().equalsIgnoreCase("RESERVED")) {
+                holder.tvUrgency.setBackgroundResource(R.drawable.bg_tag_green);
+            } else {
+                holder.tvUrgency.setBackgroundResource(R.drawable.bg_tag_orange);
+            }
+        } else if (DateUtils.isExpired(donation.getExpiryDate())) {
             holder.tvUrgency.setText("EXPIRED");
             holder.tvUrgency.setBackgroundResource(R.drawable.bg_tag_orange);
         } else {
-            holder.tvUrgency.setText(donation.getQuantity() + " items");
+            String timeLeft = DateUtils.getTimeLeft(donation.getExpiryDate());
+            holder.tvUrgency.setText(timeLeft.isEmpty() ? donation.getQuantity() + " items" : timeLeft);
+            holder.tvUrgency.setBackgroundResource(R.drawable.bg_tag_green); // Reset to default green
         }
         
         holder.tvDistance.setText(donation.getLocation());

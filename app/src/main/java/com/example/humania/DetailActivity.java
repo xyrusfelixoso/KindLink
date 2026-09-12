@@ -128,7 +128,7 @@ public class DetailActivity extends AppCompatActivity {
 
         mDatabase.child("pickupRequests").child(requestId).setValue(request)
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Pickup request sent! You can track it in 'My Requests'.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Pickup request sent! You can track it in 'My Requests'.", Toast.LENGTH_SHORT).show();
                     finish();
                 })
                 .addOnFailureListener(e -> {

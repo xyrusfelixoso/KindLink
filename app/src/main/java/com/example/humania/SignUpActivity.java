@@ -81,12 +81,12 @@ public class SignUpActivity extends AppCompatActivity {
                         FirebaseUser firebaseUser = mAuth.getCurrentUser();
                         if (firebaseUser != null) {
                             String userId = firebaseUser.getUid();
-                            User user = new User(name, email);
+                            User user = new User(name, email, password);
 
                             mDatabase.child("users").child(userId).setValue(user)
                                     .addOnCompleteListener(dbTask -> {
                                         if (dbTask.isSuccessful()) {
-                                            Toast.makeText(SignUpActivity.this, "Registration Successful!", Toast.LENGTH_LONG).show();
+                                            Toast.makeText(SignUpActivity.this, "Registration Successful!", Toast.LENGTH_SHORT).show();
                                             // Dili na i-signOut! I-diretso na sa Get Started
                                             Intent intent = new Intent(SignUpActivity.this, activity_getstarted.class);
                                             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -98,7 +98,7 @@ public class SignUpActivity extends AppCompatActivity {
                                     });
                         }
                     } else {
-                        Toast.makeText(SignUpActivity.this, "Error: " + task.getException().getMessage(), Toast.LENGTH_LONG).show();
+                        Toast.makeText(SignUpActivity.this, "Error: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 });
     }

@@ -12,6 +12,7 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ServerValue;
 import com.google.firebase.database.ValueEventListener;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,11 +53,34 @@ public class ManageRequestsActivity extends AppCompatActivity {
             public void onApprove(PickupRequest request) {
                 updateRequestStatus(request, "APPROVED");
                 markDonationAsReserved(request.getDonationId());
+                incrementHelpedCount();
             }
 
             @Override
             public void onReject(PickupRequest request) {
-                updateRequestStatus(request, "REJECTED");
+                if (request == null) return;
+                mDatabase.child("pickupRequests").child(request.getRequestId()).removeValue()
+                        .addOnSuccessListener(aVoid -> Toast.makeText(ManageRequestsActivity.this, "Request rejected and removed.", Toast.LENGTH_SHORT).show());
+            }
+
+            @Override
+            public void onConfirmPickup(PickupRequest request) {
+                // Not used in Donor view
+            }
+
+            @Override
+            public void onDeleteRequest(PickupRequest request) {
+                if (request == null) return;
+                
+                // 1. Remove the Pickup Request
+                mDatabase.child("pickupRequests").child(request.getRequestId()).removeValue()
+                        .addOnSuccessListener(aVoid -> {
+                            // 2. Also remove the Donation itself since the button says "Remove Listing"
+                            if (request.getDonationId() != null) {
+                                mDatabase.child("donations").child(request.getDonationId()).removeValue();
+                            }
+                            Toast.makeText(ManageRequestsActivity.this, "Listing and request removed.", Toast.LENGTH_SHORT).show();
+                        });
             }
         });
         rvManageRequests.setLayoutManager(new LinearLayoutManager(this));
@@ -93,5 +117,11 @@ public class ManageRequestsActivity extends AppCompatActivity {
     private void markDonationAsReserved(String donationId) {
         if (donationId == null) return;
         mDatabase.child("donations").child(donationId).child("status").setValue("RESERVED");
+    }
+
+    private void incrementHelpedCount() {
+        if (currentUserId == null) return;
+        mDatabase.child("users").child(currentUserId).child("totalHelped")
+                .setValue(ServerValue.increment(1));
     }
 }

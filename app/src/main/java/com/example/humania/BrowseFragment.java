@@ -65,7 +65,14 @@ public class BrowseFragment extends Fragment {
                         if (donation.getDonationId() == null) {
                             donation.setDonationId(dataSnapshot.getKey());
                         }
-                        donationList.add(donation);
+                        
+                        // Only show if NOT expired exactly at the set time
+                        // AND status is AVAILABLE
+                        boolean isAvailable = donation.getStatus() == null || donation.getStatus().equalsIgnoreCase("AVAILABLE");
+                        
+                        if (!DateUtils.isExpired(donation.getExpiryDate()) && isAvailable) {
+                            donationList.add(0, donation); // Newest first
+                        }
                     }
                 }
                 adapter.notifyDataSetChanged();

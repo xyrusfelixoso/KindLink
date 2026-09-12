@@ -78,8 +78,11 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 for (DataSnapshot postSnapshot : snapshot.getChildren()) {
                     Donation donation = postSnapshot.getValue(Donation.class);
                     if (donation != null && donation.getLatitude() != 0 && donation.getLongitude() != 0) {
-                        // Only show if grace period (1 day after expiry) is not over
-                        if (!DateUtils.isGracePeriodOver(donation.getExpiryDate())) {
+                        // Only show if NOT expired exactly at the set time
+                        // AND status is AVAILABLE
+                        boolean isAvailable = donation.getStatus() == null || donation.getStatus().equalsIgnoreCase("AVAILABLE");
+                        
+                        if (!DateUtils.isExpired(donation.getExpiryDate()) && isAvailable) {
                             LatLng pos = new LatLng(donation.getLatitude(), donation.getLongitude());
                             Marker marker = mMap.addMarker(new MarkerOptions()
                                     .position(pos)

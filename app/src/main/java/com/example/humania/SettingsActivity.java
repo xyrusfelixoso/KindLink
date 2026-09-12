@@ -69,7 +69,7 @@ public class SettingsActivity extends AppCompatActivity {
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
         });
-        setupRow(R.id.itemActionDelete, "Delete Account", v -> Toast.makeText(this, "Contact support to delete account", Toast.LENGTH_LONG).show());
+        setupRow(R.id.itemActionDelete, "Delete Account", v -> Toast.makeText(this, "Contact support to delete account", Toast.LENGTH_SHORT).show());
     }
 
     private void setupRow(int viewId, String title, View.OnClickListener listener) {
