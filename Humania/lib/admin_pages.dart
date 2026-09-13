@@ -749,82 +749,99 @@ class _AdminPeoplePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => StreamBuilder<DatabaseEvent>(
-    stream: database.ref('presence').onValue,
-    builder: (context, snapshot) {
-      if (snapshot.hasError) {
+    stream: database.ref('users').onValue,
+    builder: (context, usersSnapshot) {
+      if (usersSnapshot.hasError) {
         return Center(
-          child: Text('Unable to load presence: ${snapshot.error}'),
+          child: Text('Unable to load members: ${usersSnapshot.error}'),
         );
       }
-      if (!snapshot.hasData) {
+      if (!usersSnapshot.hasData) {
         return const Center(child: CircularProgressIndicator());
       }
-      final raw = snapshot.data!.snapshot.value;
-      final people = <Map<String, dynamic>>[];
-      if (raw is Map) {
-        for (final entry in raw.entries) {
-          if (entry.value is Map) {
+      return StreamBuilder<DatabaseEvent>(
+        stream: database.ref('presence').onValue,
+        builder: (context, presenceSnapshot) {
+          if (!presenceSnapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final usersRaw = usersSnapshot.data!.snapshot.value;
+          final presenceRaw = presenceSnapshot.data!.snapshot.value;
+          final users = usersRaw is Map ? usersRaw : <Object?, Object?>{};
+          final presence = presenceRaw is Map
+              ? presenceRaw
+              : <Object?, Object?>{};
+          final people = <Map<String, dynamic>>[];
+          for (final entry in users.entries) {
+            if (entry.value is! Map) continue;
+            final uid = entry.key.toString();
+            final live = presence[entry.key] is Map
+                ? Map<String, dynamic>.from(presence[entry.key] as Map)
+                : <String, dynamic>{};
             people.add({
-              'uid': entry.key.toString(),
+              'uid': uid,
               ...Map<String, dynamic>.from(entry.value as Map),
+              ...live,
             });
           }
-        }
-      }
-      people.sort((a, b) {
-        final onlineOrder = (b['online'] == true ? 1 : 0).compareTo(
-          a['online'] == true ? 1 : 0,
-        );
-        if (onlineOrder != 0) return onlineOrder;
-        return ((b['lastSeen'] as num?) ?? 0).compareTo(
-          (a['lastSeen'] as num?) ?? 0,
-        );
-      });
-      final online = people.where((person) => person['online'] == true).length;
-      return _AdminList(
-        title: 'Members',
-        subtitle: '$online online now • ${people.length} recently seen',
-        empty: 'No member presence has been recorded yet.',
-        children: people.map((person) {
-          final isOnline = person['online'] == true;
-          return Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: ListTile(
-              leading: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const CircleAvatar(child: Icon(Icons.person_outline)),
-                  Positioned(
-                    right: -1,
-                    bottom: -1,
-                    child: Container(
-                      width: 13,
-                      height: 13,
-                      decoration: BoxDecoration(
-                        color: isOnline ? Colors.green : Colors.grey,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+          people.sort((a, b) {
+            final onlineOrder = (b['online'] == true ? 1 : 0).compareTo(
+              a['online'] == true ? 1 : 0,
+            );
+            if (onlineOrder != 0) return onlineOrder;
+            return ((b['lastSeen'] as num?) ?? 0).compareTo(
+              (a['lastSeen'] as num?) ?? 0,
+            );
+          });
+          final online = people
+              .where((person) => person['online'] == true)
+              .length;
+          return _AdminList(
+            title: 'Members',
+            subtitle: '$online online now • ${people.length} registered',
+            empty: 'No registered members found.',
+            children: people.map((person) {
+              final isOnline = person['online'] == true;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const CircleAvatar(child: Icon(Icons.person_outline)),
+                      Positioned(
+                        right: -1,
+                        bottom: -1,
+                        child: Container(
+                          width: 13,
+                          height: 13,
+                          decoration: BoxDecoration(
+                            color: isOnline ? Colors.green : Colors.grey,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              title: Text(person['name'] ?? 'Member'),
-              subtitle: Text(
-                '${person['username'] == null ? '' : '@${person['username']} • '}'
-                '${isOnline ? 'Using the member app now' : _lastSeen(person['lastSeen'])}',
-              ),
-              trailing: Chip(
-                avatar: Icon(
-                  Icons.circle,
-                  size: 10,
-                  color: isOnline ? Colors.green : Colors.grey,
+                  title: Text(person['name'] ?? 'Member'),
+                  subtitle: Text(
+                    '${person['username'] == null ? '' : '@${person['username']} • '}'
+                    '${isOnline ? 'Using the member app now' : _lastSeen(person['lastSeen'])}',
+                  ),
+                  trailing: Chip(
+                    avatar: Icon(
+                      Icons.circle,
+                      size: 10,
+                      color: isOnline ? Colors.green : Colors.grey,
+                    ),
+                    label: Text(isOnline ? 'ONLINE' : 'OFFLINE'),
+                  ),
                 ),
-                label: Text(isOnline ? 'ONLINE' : 'OFFLINE'),
-              ),
-            ),
+              );
+            }).toList(),
           );
-        }).toList(),
+        },
       );
     },
   );

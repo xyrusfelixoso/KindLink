@@ -211,21 +211,36 @@ class _LoginPageState extends State<LoginPage> {
         password: password,
         isAdmin: isDesignatedAdminEmail(_emailController.text),
       );
-      widget.onSignedIn(account);
       try {
         final credential = await firebase_auth.FirebaseAuth.instance
             .createUserWithEmailAndPassword(
               email: account.email,
               password: password,
             );
+        await credential.user?.updateDisplayName(account.name);
         await database.ref('users/${credential.user!.uid}').set({
           'name': account.name,
           'username': account.username,
           'email': account.email,
           'isAdmin': account.isAdmin,
+          'createdAt': ServerValue.timestamp,
         });
+        if (mounted) widget.onSignedIn(account);
+      } on firebase_auth.FirebaseAuthException catch (error) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = error.message ?? 'Unable to create the account.';
+          });
+        }
       } on Exception {
-        // The local session remains usable while Firebase is unavailable.
+        if (mounted) {
+          setState(() {
+            _errorMessage =
+                'Account created, but the member profile could not be saved.';
+          });
+        }
+      } finally {
+        if (mounted) setState(() => _submitting = false);
       }
       return;
     }
@@ -250,10 +265,23 @@ class _LoginPageState extends State<LoginPage> {
         // Authentication is enough to enter the app. Profile data can load
         // again later when the database connection recovers.
       }
+      final fallbackName =
+          credential.user!.displayName ?? loginIdentifier.split('@').first;
+      try {
+        await database.ref('users/${credential.user!.uid}').update({
+          if (profile.isEmpty) 'name': fallbackName,
+          if (profile.isEmpty) 'username': loginIdentifier.split('@').first,
+          'email': credential.user!.email ?? loginIdentifier,
+          if (profile.isEmpty)
+            'isAdmin': isDesignatedAdminEmail(credential.user!.email),
+          'lastLoginAt': ServerValue.timestamp,
+        });
+      } on Exception {
+        // Login can continue using the authenticated Firebase identity.
+      }
       widget.onSignedIn(
         UserAccount(
-          name:
-              profile['name'] as String? ?? credential.user!.displayName ?? '',
+          name: profile['name'] as String? ?? fallbackName,
           username: profile['username'] as String? ?? loginIdentifier,
           email: credential.user!.email ?? loginIdentifier,
           password: password,

@@ -64,12 +64,18 @@ class _DashboardPageState extends State<DashboardPage>
   _donationsSubscription;
   bool _receivedDonationSnapshot = false;
   StreamSubscription<DatabaseEvent>? _connectionSubscription;
+  StreamSubscription<firebase_auth.User?>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _startPresence();
+    _authSubscription = firebase_auth.FirebaseAuth.instance
+        .authStateChanges()
+        .listen((user) {
+          if (user != null) _startPresence();
+        });
     _HomeTabState.items.clear();
     try {
       _loadRemoteActivity();
@@ -85,6 +91,7 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _authSubscription?.cancel();
     _connectionSubscription?.cancel();
     _setPresence(false);
     _donationsSubscription?.cancel();
@@ -94,6 +101,7 @@ class _DashboardPageState extends State<DashboardPage>
   Future<void> _startPresence() async {
     final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+    await _connectionSubscription?.cancel();
     final presence = database.ref('presence/$uid');
     await presence.onDisconnect().update({
       'online': false,
