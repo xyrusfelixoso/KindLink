@@ -51,7 +51,8 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage>
+    with WidgetsBindingObserver {
   int _selectedIndex = 0;
   final List<DonationItem> _pickupRequests = [];
   final List<DonationReview> _reviews = [];
@@ -62,10 +63,13 @@ class _DashboardPageState extends State<DashboardPage> {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
   _donationsSubscription;
   bool _receivedDonationSnapshot = false;
+  StreamSubscription<DatabaseEvent>? _connectionSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startPresence();
     _HomeTabState.items.clear();
     try {
       _loadRemoteActivity();
@@ -80,8 +84,53 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _connectionSubscription?.cancel();
+    _setPresence(false);
     _donationsSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _startPresence() async {
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final presence = database.ref('presence/$uid');
+    await presence.onDisconnect().update({
+      'online': false,
+      'lastSeen': ServerValue.timestamp,
+    });
+    _connectionSubscription = database.ref('.info/connected').onValue.listen((
+      event,
+    ) {
+      if (event.snapshot.value == true) _setPresence(true);
+    });
+  }
+
+  Future<void> _setPresence(bool online) async {
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await database.ref('presence/$uid').update({
+        'online': online,
+        'name': widget.user.name,
+        'username': widget.user.username,
+        'lastSeen': ServerValue.timestamp,
+        'client': 'memberApp',
+      });
+    } on Exception {
+      // onDisconnect still marks an unexpectedly disconnected member offline.
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _setPresence(true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _setPresence(false);
+    }
   }
 
   void _replaceRemoteDonations(QuerySnapshot<Map<String, dynamic>> snapshot) {
@@ -377,6 +426,8 @@ class _DashboardPageState extends State<DashboardPage> {
         role: widget.role,
         user: widget.user,
       ),
+      _RequestHelpPage(user: widget.user),
+      _CampaignHubPage(role: widget.role, user: widget.user),
       _ReferenceProfileTab(
         user: widget.user,
         onSignOut: widget.onSignOut,
@@ -411,7 +462,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     ];
     return Scaffold(
-      body: pages[_selectedIndex],
+      body: SafeArea(bottom: false, child: pages[_selectedIndex]),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Post a donation',
         onPressed: () async {
@@ -467,44 +518,61 @@ class _DashboardPageState extends State<DashboardPage> {
         shape: const CircleBorder(),
         child: const Icon(Icons.add, size: 32),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        color: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 12,
-        child: SizedBox(
-          height: 72,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _BottomBarItem(
-                icon: Icons.home_outlined,
-                label: 'Home',
-                selected: _selectedIndex == 0,
-                onTap: () => setState(() => _selectedIndex = 0),
-              ),
-              _BottomBarItem(
-                icon: Icons.map_outlined,
-                label: 'Map',
-                selected: _selectedIndex == 1,
-                onTap: () => setState(() => _selectedIndex = 1),
-              ),
-              const SizedBox(width: 56),
-              _BottomBarItem(
-                icon: Icons.volunteer_activism_outlined,
-                label: 'Donations',
-                selected: _selectedIndex == 2,
-                onTap: () => setState(() => _selectedIndex = 2),
-              ),
-              _BottomBarItem(
-                icon: Icons.person_outline,
-                label: 'Profile',
-                selected: _selectedIndex == 3,
-                onTap: () => setState(() => _selectedIndex = 3),
-              ),
-            ],
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: BottomAppBar(
+          height: 64,
+          padding: EdgeInsets.zero,
+          color: Colors.white,
+          surfaceTintColor: Colors.white,
+          elevation: 12,
+          child: SizedBox(
+            height: 64,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _BottomBarItem(
+                    icon: Icons.home_outlined,
+                    label: 'Home',
+                    selected: _selectedIndex == 0,
+                    onTap: () => setState(() => _selectedIndex = 0),
+                  ),
+                ),
+                Expanded(
+                  child: _BottomBarItem(
+                    icon: Icons.map_outlined,
+                    label: 'Map',
+                    selected: _selectedIndex == 1,
+                    onTap: () => setState(() => _selectedIndex = 1),
+                  ),
+                ),
+                Expanded(
+                  child: _BottomBarItem(
+                    icon: Icons.front_hand_outlined,
+                    label: 'Request',
+                    selected: _selectedIndex == 3,
+                    onTap: () => setState(() => _selectedIndex = 3),
+                  ),
+                ),
+                Expanded(
+                  child: _BottomBarItem(
+                    icon: Icons.apartment_outlined,
+                    label: 'Orgs',
+                    selected: _selectedIndex == 4,
+                    onTap: () => setState(() => _selectedIndex = 4),
+                  ),
+                ),
+                Expanded(
+                  child: _BottomBarItem(
+                    icon: Icons.person_outline,
+                    label: 'Profile',
+                    selected: _selectedIndex == 5,
+                    onTap: () => setState(() => _selectedIndex = 5),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -528,17 +596,34 @@ class _BottomBarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? const Color(0xff19704f) : Colors.grey;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color),
-            Text(label, style: TextStyle(color: color, fontSize: 12)),
-          ],
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label == 'Orgs' ? 'Organizations' : label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 5),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textScaler: TextScaler.noScaling,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -630,6 +715,7 @@ class _HomeTabState extends State<_HomeTab> {
                   ],
                 ),
               ),
+              const SizedBox(width: 6),
               const Icon(Icons.waving_hand_outlined, color: Colors.amber),
             ],
           ),
@@ -726,6 +812,13 @@ class _MapTabState extends State<_MapTab> {
   LatLng _userLocation = defaultLocation;
   bool _locationLoaded = false;
   DonationItem? _nearestItem;
+  QueryDocumentSnapshot<Map<String, dynamic>>? _selectedHelpRequest;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _helpRequests = [];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _dropOffPoints = [];
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _helpRequestsSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _dropOffPointsSubscription;
   static const itemLocations = [
     LatLng(14.6042, 120.9822),
     LatLng(14.5956, 120.9912),
@@ -742,6 +835,33 @@ class _MapTabState extends State<_MapTab> {
   void initState() {
     super.initState();
     _loadUserLocation();
+    _helpRequestsSubscription = FirebaseFirestore.instance
+        .collection('helpRequests')
+        .snapshots()
+        .listen((snapshot) {
+          if (mounted) {
+            setState(
+              () => _helpRequests = snapshot.docs.where((doc) {
+                final status = _requestStatus(doc.data());
+                return status == 'Approved' || status == 'Fulfilled';
+              }).toList(),
+            );
+          }
+        });
+    _dropOffPointsSubscription = FirebaseFirestore.instance
+        .collection('dropOffPoints')
+        .where('status', isEqualTo: 'active')
+        .snapshots()
+        .listen((snapshot) {
+          if (mounted) setState(() => _dropOffPoints = snapshot.docs);
+        });
+  }
+
+  @override
+  void dispose() {
+    _helpRequestsSubscription?.cancel();
+    _dropOffPointsSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadUserLocation() async {
@@ -833,8 +953,56 @@ class _MapTabState extends State<_MapTab> {
                           setState(() => _nearestItem = widget.items[index]),
                       child: const Icon(
                         Icons.location_on,
-                        color: Color(0xffd55b4a),
+                        color: Color(0xffffb300),
                         size: 42,
+                      ),
+                    ),
+                  );
+                }),
+                ..._helpRequests
+                    .where((doc) {
+                      final data = doc.data();
+                      return data['latitude'] is num &&
+                          data['longitude'] is num;
+                    })
+                    .map((doc) {
+                      final data = doc.data();
+                      final fulfilled = _requestStatus(data) == 'Fulfilled';
+                      return Marker(
+                        point: LatLng(
+                          (data['latitude'] as num).toDouble(),
+                          (data['longitude'] as num).toDouble(),
+                        ),
+                        width: 50,
+                        height: 50,
+                        child: GestureDetector(
+                          onTap: () => setState(() {
+                            _selectedHelpRequest = doc;
+                            _nearestItem = null;
+                          }),
+                          child: Icon(
+                            fulfilled ? Icons.check_circle : Icons.location_on,
+                            color: fulfilled ? Colors.green : Colors.red,
+                            size: 44,
+                          ),
+                        ),
+                      );
+                    }),
+                ..._dropOffPoints.map((doc) {
+                  final data = doc.data();
+                  return Marker(
+                    point: LatLng(
+                      (data['latitude'] as num).toDouble(),
+                      (data['longitude'] as num).toDouble(),
+                    ),
+                    width: 48,
+                    height: 48,
+                    child: Tooltip(
+                      message: '${data['name']}\n${data['operatingHours']}',
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Colors.green,
+                        size: 43,
                       ),
                     ),
                   );
@@ -882,6 +1050,68 @@ class _MapTabState extends State<_MapTab> {
                     subtitle: Text(_nearestItem!.location),
                   ),
                 ),
+              if (_selectedHelpRequest != null)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _selectedHelpRequest!.data()['title'] ?? 'Needs help',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          _selectedHelpRequest!.data()['neededItems'] ?? '',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'By ${_selectedHelpRequest!.data()['requesterName'] ?? 'Community member'}'
+                          '${_selectedHelpRequest!.data()['requesterUsername'] == null ? '' : ' (@${_selectedHelpRequest!.data()['requesterUsername']})'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => _HelpRequestDetailsPage(
+                                  document: _selectedHelpRequest!,
+                                ),
+                              ),
+                            ),
+                            child: const Text('View needs'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: const [
+                      Text('🔴 Needs help'),
+                      Text('🟢 Donation center'),
+                      Text('🟡 Donation available'),
+                      Text('✅ Fulfilled'),
+                    ],
+                  ),
+                ),
+              ),
               FilledButton.icon(
                 onPressed: _suggestNearest,
                 icon: const Icon(Icons.near_me),
@@ -922,19 +1152,26 @@ class _HomeSummary extends StatelessWidget {
         children: [
           Icon(icon, color: const Color(0xff2d7355)),
           const SizedBox(width: 9),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Color(0xff194c3b),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Color(0xff194c3b),
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              Text(label, style: const TextStyle(color: Color(0xff527d6d))),
-            ],
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Color(0xff527d6d)),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1170,6 +1407,8 @@ class _DonationCard extends StatelessWidget {
         ),
         title: Text(
           item.name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: Color(0xff194c3b),
             fontWeight: FontWeight.bold,
@@ -1196,7 +1435,13 @@ class _DonationCard extends StatelessWidget {
                   children: [
                     const Icon(Icons.calendar_today_outlined, size: 15),
                     const SizedBox(width: 3),
-                    Text('Posted ${formatPostedDate(item.postedAt!)}'),
+                    Expanded(
+                      child: Text(
+                        'Posted ${formatPostedDate(item.postedAt!)}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -1205,7 +1450,13 @@ class _DonationCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.person_outline, size: 15),
                   const SizedBox(width: 3),
-                  Text('Donated by ${item.donor}'),
+                  Expanded(
+                    child: Text(
+                      'Donated by ${item.donor}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
               if (item.organizationName != null) ...[
@@ -1334,7 +1585,13 @@ class _DonorDonationCard extends StatelessWidget {
 }
 
 class _DonationLocationPicker extends StatefulWidget {
-  const _DonationLocationPicker();
+  const _DonationLocationPicker({
+    this.title = 'Pick item location',
+    this.instruction = 'Tap anywhere on the map to place the donation pin.',
+  });
+
+  final String title;
+  final String instruction;
 
   @override
   State<_DonationLocationPicker> createState() =>
@@ -1350,7 +1607,7 @@ class _DonationLocationPickerState extends State<_DonationLocationPicker> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pick item location'),
+        title: Text(widget.title),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(_selectedLocation),
@@ -1404,11 +1661,7 @@ class _DonationLocationPickerState extends State<_DonationLocationPicker> {
                       color: Color(0xff19704f),
                     ),
                     const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Tap anywhere on the map to place the donation pin.',
-                      ),
-                    ),
+                    Expanded(child: Text(widget.instruction)),
                   ],
                 ),
               ),

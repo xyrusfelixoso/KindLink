@@ -53,7 +53,7 @@ class _ReferenceProfileTab extends StatelessWidget {
                 ),
               ),
               Text(
-                '@${user.username} · Verified',
+                '@${user.username}',
                 style: const TextStyle(color: Colors.white70, fontSize: 15),
               ),
               if (user.organizationName != null &&
@@ -124,9 +124,96 @@ class _ReferenceProfileTab extends StatelessWidget {
                   ),
                 ),
               ),
+              FutureBuilder<DataSnapshot>(
+                future: firebase_auth.FirebaseAuth.instance.currentUser == null
+                    ? null
+                    : database
+                          .ref(
+                            'organizations/${firebase_auth.FirebaseAuth.instance.currentUser!.uid}',
+                          )
+                          .get(),
+                builder: (context, snapshot) {
+                  final uid =
+                      firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+                  final organization = snapshot.data?.value is Map
+                      ? Map<Object?, Object?>.from(snapshot.data!.value! as Map)
+                      : <Object?, Object?>{};
+                  final isVerifiedLeader =
+                      uid != null &&
+                      organization['ownerUid'] == uid &&
+                      organization['verificationStatus'] == 'verified';
+                  if (!isVerifiedLeader) return const SizedBox.shrink();
+                  return Column(
+                    children: [
+                      _ReferenceTile(
+                        icon: Icons.fact_check_outlined,
+                        title: 'Help request approvals',
+                        subtitle: 'Approve or decline community requests',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                _HelpRequestModerationPage(organizationId: uid),
+                          ),
+                        ),
+                      ),
+                      _ReferenceTile(
+                        icon: Icons.add_business_outlined,
+                        title: 'Temporary drop-off points',
+                        subtitle: 'Create a verified collection location',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                _DropOffPointsPage(organizationId: uid),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              if (user.isAdmin)
+                _ReferenceTile(
+                  icon: Icons.admin_panel_settings_outlined,
+                  title: 'Admin verification',
+                  subtitle: 'Verify organizations and help requests',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const _AdminOrganizationVerificationPage(),
+                    ),
+                  ),
+                ),
+              _ReferenceTile(
+                icon: Icons.front_hand_outlined,
+                title: 'My help requests',
+                subtitle: 'Track approvals, pledges, and received items',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const _MyHelpRequestsPage(),
+                  ),
+                ),
+              ),
+              _ReferenceTile(
+                icon: Icons.volunteer_activism_outlined,
+                title: 'My help donations',
+                subtitle: 'Track pledges, delivery, and confirmation codes',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const _MyHelpDonationsPage(),
+                  ),
+                ),
+              ),
+              _ReferenceTile(
+                icon: Icons.notifications_outlined,
+                title: 'Notifications',
+                subtitle: 'Donation and request updates',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const _NotificationsPage()),
+                ),
+              ),
               _ReferenceTile(
                 icon: Icons.handshake_outlined,
-                title: 'My Requests',
+                title: 'My pickup requests',
                 subtitle: '${pickupRequests.length} pickup requests',
                 onTap: () => _openRequests(context),
               ),
@@ -405,8 +492,14 @@ class _OrganizationPageState extends State<_OrganizationPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _detailsController;
   final _joinController = TextEditingController();
+  final _pageController = ScrollController();
   final List<Map<String, String>> _organizations = [];
   bool _loadingOrganizations = true;
+  bool _organizationHeaderExpanded = false;
+  late bool _editingOrganization;
+  bool _isOrganizationOwner = false;
+  bool _deletingOrganization = false;
+  String _organizationVerificationStatus = 'pending';
   String? _inviteCode;
 
   @override
@@ -416,6 +509,7 @@ class _OrganizationPageState extends State<_OrganizationPage> {
     _detailsController = TextEditingController(
       text: widget.user.organizationDetails,
     );
+    _editingOrganization = widget.user.organizationName == null;
     _loadCurrentInviteCode();
     _loadOrganizations();
   }
@@ -423,9 +517,19 @@ class _OrganizationPageState extends State<_OrganizationPage> {
   Future<void> _loadCurrentInviteCode() async {
     final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    final snapshot = await database.ref('organizations/$uid/inviteCode').get();
+    final userSnapshot = await database.ref('users/$uid/organizationId').get();
+    final organizationId = userSnapshot.value as String? ?? uid;
+    final snapshot = await database.ref('organizations/$organizationId').get();
     if (!mounted) return;
-    setState(() => _inviteCode = snapshot.value as String?);
+    final organization = snapshot.value is Map
+        ? Map<Object?, Object?>.from(snapshot.value! as Map)
+        : <Object?, Object?>{};
+    setState(() {
+      _isOrganizationOwner = snapshot.exists && organization['ownerUid'] == uid;
+      _inviteCode = organization['inviteCode'] as String?;
+      _organizationVerificationStatus =
+          organization['verificationStatus'] as String? ?? 'pending';
+    });
   }
 
   Future<void> _loadOrganizations() async {
@@ -441,6 +545,10 @@ class _OrganizationPageState extends State<_OrganizationPage> {
           final data = Map<Object?, Object?>.from(entry.value! as Map);
           final name = data['name'] as String?;
           if (name == null || name.trim().isEmpty) continue;
+          if ((data['verificationStatus'] as String? ?? 'pending') !=
+              'verified') {
+            continue;
+          }
           loaded.add({
             'id': entry.key.toString(),
             'name': name,
@@ -465,7 +573,60 @@ class _OrganizationPageState extends State<_OrganizationPage> {
     _nameController.dispose();
     _detailsController.dispose();
     _joinController.dispose();
+    _pageController.dispose();
     super.dispose();
+  }
+
+  void _startCreatingOrganization() {
+    setState(() {
+      _editingOrganization = true;
+      _organizationHeaderExpanded = true;
+    });
+    _pageController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Widget _availableOrganizationCard(Map<String, String> organization) {
+    final currentUid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    final isOwnedByCurrentUser = organization['id'] == currentUid;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          leading: const CircleAvatar(
+            backgroundColor: Color(0xffd9f4df),
+            child: Icon(Icons.apartment_outlined, color: Color(0xff19704f)),
+          ),
+          title: Text(
+            organization['name']!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xff194c3b),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Text(
+            organization['details']!.isEmpty
+                ? 'No details provided'
+                : organization['details']!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: isOwnedByCurrentUser
+              ? const Chip(label: Text('Yours'))
+              : FilledButton(
+                  onPressed: () => _joinListedOrganization(organization),
+                  child: const Text('Join'),
+                ),
+        ),
+      ),
+    );
   }
 
   Future<void> _saveOrganization() async {
@@ -473,12 +634,23 @@ class _OrganizationPageState extends State<_OrganizationPage> {
     if (name.isEmpty) return;
     final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+    if (widget.user.organizationName != null && !_isOrganizationOwner) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Only the organization owner can change its details.'),
+        ),
+      );
+      return;
+    }
     final inviteCode = _inviteCode ?? _createInviteCode();
-    await database.ref('organizations/$uid').set({
+    final isNewOrganization = !_isOrganizationOwner;
+    await database.ref('organizations/$uid').update({
       'name': name,
       'details': _detailsController.text.trim(),
       'ownerUid': uid,
       'inviteCode': inviteCode,
+      if (isNewOrganization) 'verificationStatus': 'pending',
     });
     await database.ref('users/$uid').update({
       'organizationName': name,
@@ -487,7 +659,12 @@ class _OrganizationPageState extends State<_OrganizationPage> {
     widget.user
       ..organizationName = name
       ..organizationDetails = _detailsController.text.trim();
-    _inviteCode = inviteCode;
+    setState(() {
+      _inviteCode = inviteCode;
+      _isOrganizationOwner = true;
+      if (isNewOrganization) _organizationVerificationStatus = 'pending';
+      _editingOrganization = false;
+    });
     widget.onSaved();
     await _loadOrganizations();
     if (mounted) {
@@ -541,6 +718,17 @@ class _OrganizationPageState extends State<_OrganizationPage> {
       'organizationName': widget.user.organizationName,
       'organizationDetails': widget.user.organizationDetails,
     });
+    setState(() {
+      _nameController.text = widget.user.organizationName ?? '';
+      _detailsController.text = widget.user.organizationDetails ?? '';
+      _organizationVerificationStatus =
+          data?['verificationStatus'] as String? ?? 'pending';
+      _inviteCode = data?['inviteCode'] as String?;
+      _isOrganizationOwner = data?['ownerUid'] == uid;
+      _editingOrganization = false;
+      _organizationHeaderExpanded = true;
+      _joinController.clear();
+    });
     widget.onSaved();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -566,6 +754,20 @@ class _OrganizationPageState extends State<_OrganizationPage> {
       'organizationName': widget.user.organizationName,
       'organizationDetails': widget.user.organizationDetails,
     });
+    final joinedSnapshot = await database.ref('organizations/$id').get();
+    final joinedData = joinedSnapshot.value is Map
+        ? Map<Object?, Object?>.from(joinedSnapshot.value! as Map)
+        : <Object?, Object?>{};
+    setState(() {
+      _nameController.text = widget.user.organizationName ?? '';
+      _detailsController.text = widget.user.organizationDetails ?? '';
+      _organizationVerificationStatus =
+          joinedData['verificationStatus'] as String? ?? 'pending';
+      _inviteCode = joinedData['inviteCode'] as String?;
+      _isOrganizationOwner = joinedData['ownerUid'] == uid;
+      _editingOrganization = false;
+      _organizationHeaderExpanded = true;
+    });
     widget.onSaved();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -583,65 +785,165 @@ class _OrganizationPageState extends State<_OrganizationPage> {
     ).join();
   }
 
+  Future<void> _deleteOrganization() async {
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _deletingOrganization) return;
+
+    final snapshot = await database.ref('organizations/$uid').get();
+    final organization = snapshot.value is Map
+        ? Map<Object?, Object?>.from(snapshot.value! as Map)
+        : <Object?, Object?>{};
+    if (!snapshot.exists || organization['ownerUid'] != uid) {
+      if (!mounted) return;
+      setState(() => _isOrganizationOwner = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Only the organization owner can delete it.'),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete organization?'),
+        content: const Text(
+          'This permanently deletes the organization and removes it from all members. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deletingOrganization = true);
+    try {
+      final updates = <String, Object?>{
+        'organizations/$uid': null,
+        'users/$uid/organizationId': null,
+        'users/$uid/organizationName': null,
+        'users/$uid/organizationDetails': null,
+      };
+      final members = organization['members'];
+      if (members is Map) {
+        for (final memberId in members.keys.map((key) => key.toString())) {
+          final memberOrganization = await database
+              .ref('users/$memberId/organizationId')
+              .get();
+          if (memberOrganization.value == uid) {
+            updates['users/$memberId/organizationId'] = null;
+            updates['users/$memberId/organizationName'] = null;
+            updates['users/$memberId/organizationDetails'] = null;
+          }
+        }
+      }
+      await database.ref().update(updates);
+      widget.user
+        ..organizationName = null
+        ..organizationDetails = null;
+      _nameController.clear();
+      _detailsController.clear();
+      setState(() {
+        _inviteCode = null;
+        _isOrganizationOwner = false;
+        _editingOrganization = true;
+        _organizationHeaderExpanded = false;
+      });
+      widget.onSaved();
+      await _loadOrganizations();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Organization deleted.')));
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to delete the organization.')),
+      );
+    } finally {
+      if (mounted) setState(() => _deletingOrganization = false);
+    }
+  }
+
+  Future<void> _leaveOrganization() async {
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _isOrganizationOwner) return;
+    final organizationIdSnapshot = await database
+        .ref('users/$uid/organizationId')
+        .get();
+    final organizationId = organizationIdSnapshot.value as String?;
+    if (organizationId == null || organizationId.isEmpty) return;
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Leave organization?'),
+        content: Text(
+          'You will leave ${widget.user.organizationName ?? 'this organization'} and lose member access.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await database.ref().update({
+      'organizations/$organizationId/members/$uid': null,
+      'users/$uid/organizationId': null,
+      'users/$uid/organizationName': null,
+      'users/$uid/organizationDetails': null,
+    });
+    widget.user
+      ..organizationName = null
+      ..organizationDetails = null;
+    setState(() {
+      _nameController.clear();
+      _detailsController.clear();
+      _inviteCode = null;
+      _organizationVerificationStatus = 'pending';
+      _organizationHeaderExpanded = false;
+      _editingOrganization = true;
+    });
+    widget.onSaved();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You left the organization.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Organization workspace')),
+      appBar: AppBar(
+        title: const Text(
+          'Organization',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
       body: ListView(
+        controller: _pageController,
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xff155d43), Color(0xff2f8b67)],
-              ),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.apartment, color: Colors.white, size: 32),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _nameController.text.trim().isEmpty
-                            ? 'Build your community'
-                            : _nameController.text,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Row(
-                        children: [
-                          Icon(
-                            Icons.verified_outlined,
-                            color: Color(0xffffd54f),
-                            size: 18,
-                          ),
-                          SizedBox(width: 5),
-                          Text(
-                            'Organization workspace',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -657,87 +959,416 @@ class _OrganizationPageState extends State<_OrganizationPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Organization name',
-                      prefixIcon: Icon(Icons.apartment_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _detailsController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Organization details',
-                      prefixIcon: Icon(Icons.description_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: _saveOrganization,
-                    icon: const Icon(Icons.add_business_outlined),
-                    label: const Text('Save organization'),
-                  ),
-                  if (widget.user.organizationName != null) ...[
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              _OrganizationCampaignsPage(user: widget.user),
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(24),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => setState(
+                        () => _organizationHeaderExpanded =
+                            !_organizationHeaderExpanded,
+                      ),
+                      child: Ink(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xff155d43), Color(0xff2f8b67)],
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 30,
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(
+                                    Icons.apartment,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _nameController.text.trim().isEmpty
+                                            ? 'Build your community'
+                                            : _nameController.text,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Row(
+                                        children: [
+                                          Icon(
+                                            Icons.verified_outlined,
+                                            color: Color(0xffffd54f),
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 5),
+                                          Expanded(
+                                            child: Text(
+                                              'Organization',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: Colors.white70,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  _organizationHeaderExpanded
+                                      ? Icons.keyboard_arrow_up
+                                      : Icons.keyboard_arrow_down,
+                                  color: Colors.white,
+                                ),
+                              ],
+                            ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeInOut,
+                              child: !_organizationHeaderExpanded
+                                  ? const SizedBox.shrink()
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 14,
+                                          ),
+                                          child: Divider(color: Colors.white24),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white12,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Verification: ${_organizationVerificationStatus.toUpperCase()}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        if (!_editingOrganization) ...[
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Icon(
+                                                Icons.apartment_outlined,
+                                                color: Color(0xffffd54f),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  _nameController.text
+                                                          .trim()
+                                                          .isEmpty
+                                                      ? 'Organization name: Not set'
+                                                      : 'Organization name: ${_nameController.text.trim()}',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Icon(
+                                                Icons.description_outlined,
+                                                color: Color(0xffffd54f),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  _detailsController.text
+                                                          .trim()
+                                                          .isEmpty
+                                                      ? 'Organization details: Not set'
+                                                      : 'Organization details: ${_detailsController.text.trim()}',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.key_outlined,
+                                              color: Color(0xffffd54f),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                _inviteCode == null
+                                                    ? 'Save to create an invite code'
+                                                    : 'Invite code: $_inviteCode',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            if (_inviteCode != null)
+                                              IconButton(
+                                                tooltip: 'Copy invite code',
+                                                color: Colors.white,
+                                                onPressed: () {
+                                                  Clipboard.setData(
+                                                    ClipboardData(
+                                                      text: _inviteCode!,
+                                                    ),
+                                                  );
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Invite code copied.',
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                                icon: const Icon(
+                                                  Icons.copy_outlined,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 16),
+                                        if (_editingOrganization &&
+                                            (_isOrganizationOwner ||
+                                                widget.user.organizationName ==
+                                                    null)) ...[
+                                          const Text(
+                                            'Organization name',
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          TextField(
+                                            controller: _nameController,
+                                            onChanged: (_) => setState(() {}),
+                                            decoration: const InputDecoration(
+                                              hintText:
+                                                  'Enter organization name',
+                                              prefixIcon: Icon(
+                                                Icons.apartment_outlined,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          const Text(
+                                            'Organization details',
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          TextField(
+                                            controller: _detailsController,
+                                            onChanged: (_) => setState(() {}),
+                                            minLines: 2,
+                                            maxLines: 4,
+                                            decoration: const InputDecoration(
+                                              hintText:
+                                                  'Describe your organization',
+                                              prefixIcon: Icon(
+                                                Icons.description_outlined,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 14),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            if (_editingOrganization &&
+                                                (_isOrganizationOwner ||
+                                                    widget
+                                                            .user
+                                                            .organizationName ==
+                                                        null))
+                                              FilledButton.icon(
+                                                onPressed: _saveOrganization,
+                                                style: FilledButton.styleFrom(
+                                                  backgroundColor: Colors.white,
+                                                  foregroundColor: const Color(
+                                                    0xff19704f,
+                                                  ),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.save_outlined,
+                                                ),
+                                                label: const Text(
+                                                  'Save details',
+                                                ),
+                                              )
+                                            else if (_isOrganizationOwner)
+                                              OutlinedButton.icon(
+                                                onPressed: () => setState(
+                                                  () => _editingOrganization =
+                                                      true,
+                                                ),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: Colors.white,
+                                                  side: const BorderSide(
+                                                    color: Colors.white54,
+                                                  ),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.edit_outlined,
+                                                ),
+                                                label: const Text(
+                                                  'Change details',
+                                                ),
+                                              ),
+                                            if (_isOrganizationOwner)
+                                              OutlinedButton.icon(
+                                                onPressed: () => Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        _OrganizationCampaignsPage(
+                                                          user: widget.user,
+                                                        ),
+                                                  ),
+                                                ),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: Colors.white,
+                                                  side: const BorderSide(
+                                                    color: Colors.white54,
+                                                  ),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.campaign_outlined,
+                                                ),
+                                                label: const Text('Campaigns'),
+                                              ),
+                                            if (_isOrganizationOwner &&
+                                                _organizationVerificationStatus ==
+                                                    'verified')
+                                              OutlinedButton.icon(
+                                                onPressed: () => Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        _HelpRequestModerationPage(
+                                                          organizationId:
+                                                              firebase_auth
+                                                                  .FirebaseAuth
+                                                                  .instance
+                                                                  .currentUser
+                                                                  ?.uid,
+                                                        ),
+                                                  ),
+                                                ),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: Colors.white,
+                                                  side: const BorderSide(
+                                                    color: Colors.white54,
+                                                  ),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.fact_check_outlined,
+                                                ),
+                                                label: const Text(
+                                                  'Help requests',
+                                                ),
+                                              ),
+                                            if (_isOrganizationOwner)
+                                              OutlinedButton.icon(
+                                                onPressed: _deletingOrganization
+                                                    ? null
+                                                    : _deleteOrganization,
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: const Color(
+                                                    0xffffd7d7,
+                                                  ),
+                                                  side: const BorderSide(
+                                                    color: Color(0xffffa8a8),
+                                                  ),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                ),
+                                                label: Text(
+                                                  _deletingOrganization
+                                                      ? 'Deleting...'
+                                                      : 'Delete',
+                                                ),
+                                              ),
+                                            if (!_isOrganizationOwner &&
+                                                widget.user.organizationName !=
+                                                    null)
+                                              OutlinedButton.icon(
+                                                onPressed: _leaveOrganization,
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: const Color(
+                                                    0xffffd7d7,
+                                                  ),
+                                                  side: const BorderSide(
+                                                    color: Color(0xffffa8a8),
+                                                  ),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.logout_outlined,
+                                                ),
+                                                label: const Text(
+                                                  'Leave organization',
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ],
                         ),
                       ),
-                      icon: const Icon(Icons.campaign_outlined),
-                      label: const Text('Manage donation campaigns'),
                     ),
-                  ],
-                  if (_inviteCode != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xffd9f4df),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.key_outlined,
-                            color: Color(0xff19704f),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Invite code: $_inviteCode',
-                              style: const TextStyle(
-                                color: Color(0xff194c3b),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Copy invite code',
-                            onPressed: () {
-                              Clipboard.setData(
-                                ClipboardData(text: _inviteCode!),
-                              );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Invite code copied.'),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.copy_outlined),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -775,49 +1406,66 @@ class _OrganizationPageState extends State<_OrganizationPage> {
               ),
             ),
           ),
-          const SizedBox(height: 22),
-          const Text(
-            'Available organizations',
-            style: TextStyle(
-              color: Color(0xff194c3b),
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (_loadingOrganizations)
-            const Center(child: CircularProgressIndicator())
-          else if (_organizations.isEmpty)
-            const Text('No organizations have been created yet.')
-          else
-            ..._organizations.map(
-              (organization) => Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 4,
+          const SizedBox(height: 14),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Available organizations',
+                          style: TextStyle(
+                            color: Color(0xff194c3b),
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  leading: const CircleAvatar(
-                    backgroundColor: Color(0xffd9f4df),
-                    child: Icon(
-                      Icons.apartment_outlined,
-                      color: Color(0xff19704f),
+                  if (widget.user.organizationName == null) ...[
+                    const SizedBox(height: 6),
+                    FilledButton.icon(
+                      onPressed: _startCreatingOrganization,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create organization'),
                     ),
-                  ),
-                  title: Text(organization['name']!),
-                  subtitle: Text(
-                    organization['details']!.isEmpty
-                        ? 'No details provided'
-                        : organization['details']!,
-                  ),
-                  trailing: FilledButton(
-                    onPressed: () => _joinListedOrganization(organization),
-                    child: const Text('Join'),
-                  ),
-                ),
+                  ],
+                  const SizedBox(height: 12),
+                  if (_loadingOrganizations)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_organizations.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xfff3f8f5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Text(
+                        'No organizations have been created yet.',
+                        style: TextStyle(color: Color(0xff527d6d)),
+                      ),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                ],
               ),
             ),
+          ),
+          if (!_loadingOrganizations && _organizations.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ..._organizations.map(_availableOrganizationCard),
+          ],
         ],
       ),
     );

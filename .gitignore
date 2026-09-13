@@ -24,3 +24,7 @@
 local.properties
 analysis_output.txt
 * (2).*
+# Widget Preview related
+.widget_preview/
+.vscode/
+Humania/releases/*.apk

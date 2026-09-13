@@ -6,7 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Transaction;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -19,20 +19,34 @@ part 'models.dart';
 part 'auth_pages.dart';
 part 'dashboard_pages.dart';
 part 'campaign_pages.dart';
+part 'request_pages.dart';
 part 'profile_pages.dart';
+part 'admin_pages.dart';
+
+const firebaseDatabaseUrl =
+    'https://humania-d6c36-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+const designatedAdminEmails = {'xyrusfelix@gmail.com'};
+
+bool isDesignatedAdminEmail(String? email) =>
+    email != null && designatedAdminEmails.contains(email.trim().toLowerCase());
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: const FirebaseOptions(
-      apiKey: 'AIzaSyArj-0jlbVgccZXmygjdZxBUTP80qvEBX0',
-      appId: '1:982646246891:android:ef99698cdd6799dafe5dae',
-      messagingSenderId: '982646246891',
-      projectId: 'humania-d6c36',
-      storageBucket: 'humania-d6c36.firebasestorage.app',
-      databaseURL: 'https://humania-d6c36-default-rtdb.asia-southeast1.firebasedatabase.app',
-    ),
-  );
+  if (kIsWeb && Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: 'AIzaSyArj-0jlbVgccZXmygjdZxBUTP80qvEBX0',
+        appId: '1:982646246891:android:ef99698cdd6799dafe5dae',
+        messagingSenderId: '982646246891',
+        projectId: 'humania-d6c36',
+        storageBucket: 'humania-d6c36.firebasestorage.app',
+        databaseURL: firebaseDatabaseUrl,
+      ),
+    );
+  } else if (!kIsWeb) {
+    await Firebase.initializeApp();
+  }
   runApp(const MyApp());
 }
 
@@ -66,6 +80,18 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Humania',
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: mediaQuery.textScaler.clamp(
+              minScaleFactor: 0.9,
+              maxScaleFactor: 1.25,
+            ),
+          ),
+          child: child!,
+        );
+      },
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xff19704f),
@@ -105,10 +131,15 @@ class _MyAppState extends State<MyApp> {
           ),
         ),
       ),
-      home: _currentUser == null
+      home: kIsWeb
+          ? const _AdminWebGate()
+          : _currentUser == null
           ? LoginPage(onSignedIn: _signIn)
           : _role == null
-          ? RolePage(onRoleSelected: (role) => setState(() => _role = role))
+          ? RolePage(
+              showAdmin: _currentUser!.isAdmin,
+              onRoleSelected: (role) => setState(() => _role = role),
+            )
           : DashboardPage(
               user: _currentUser!,
               onSignOut: _signOut,

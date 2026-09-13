@@ -1,9 +1,14 @@
 part of 'main.dart';
 
 class RolePage extends StatelessWidget {
-  const RolePage({super.key, required this.onRoleSelected});
+  const RolePage({
+    super.key,
+    required this.onRoleSelected,
+    this.showAdmin = false,
+  });
 
   final ValueChanged<String> onRoleSelected;
+  final bool showAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +74,13 @@ class RolePage extends StatelessWidget {
             color: green,
             onPressed: () => onRoleSelected('Organization'),
           ),
+          if (showAdmin)
+            _RoleButton(
+              label: 'ADMIN VERIFICATION',
+              icon: Icons.admin_panel_settings_outlined,
+              color: green,
+              onPressed: () => onRoleSelected('Admin'),
+            ),
         ],
       ),
     );
@@ -197,6 +209,7 @@ class _LoginPageState extends State<LoginPage> {
         username: loginIdentifier,
         email: _emailController.text.trim(),
         password: password,
+        isAdmin: isDesignatedAdminEmail(_emailController.text),
       );
       widget.onSignedIn(account);
       try {
@@ -209,6 +222,7 @@ class _LoginPageState extends State<LoginPage> {
           'name': account.name,
           'username': account.username,
           'email': account.email,
+          'isAdmin': account.isAdmin,
         });
       } on Exception {
         // The local session remains usable while Firebase is unavailable.
@@ -221,13 +235,21 @@ class _LoginPageState extends State<LoginPage> {
           .signInWithEmailAndPassword(
             email: loginIdentifier,
             password: password,
-          );
-      final snapshot = await database
-          .ref('users/${credential.user!.uid}')
-          .get();
-      final profile = snapshot.value is Map
-          ? Map<Object?, Object?>.from(snapshot.value! as Map)
-          : <Object?, Object?>{};
+          )
+          .timeout(const Duration(seconds: 20));
+      var profile = <Object?, Object?>{};
+      try {
+        final snapshot = await database
+            .ref('users/${credential.user!.uid}')
+            .get()
+            .timeout(const Duration(seconds: 10));
+        if (snapshot.value is Map) {
+          profile = Map<Object?, Object?>.from(snapshot.value! as Map);
+        }
+      } on Exception {
+        // Authentication is enough to enter the app. Profile data can load
+        // again later when the database connection recovers.
+      }
       widget.onSignedIn(
         UserAccount(
           name:
@@ -239,8 +261,21 @@ class _LoginPageState extends State<LoginPage> {
               (profile['profileAvatarIndex'] as num?)?.toInt() ?? 0,
           organizationName: profile['organizationName'] as String?,
           organizationDetails: profile['organizationDetails'] as String?,
+          isAdmin:
+              profile['isAdmin'] == true ||
+              isDesignatedAdminEmail(credential.user!.email),
         ),
       );
+      if (isDesignatedAdminEmail(credential.user!.email) &&
+          profile['isAdmin'] != true) {
+        try {
+          await database.ref('users/${credential.user!.uid}').update({
+            'isAdmin': true,
+          });
+        } on Exception {
+          // The designated account still receives the local admin interface.
+        }
+      }
     } on firebase_auth.FirebaseAuthException catch (error) {
       if (mounted) {
         if (_isRegistering &&
@@ -306,229 +341,276 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: const Color(0xff1c6349),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(22),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(30, 24, 30, 20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
+        child: LayoutBuilder(
+          builder: (context, viewport) {
+            final compact = viewport.maxWidth < 420;
+            return Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 12 : 22,
+                  vertical: compact ? 12 : 22,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          _isRegistering ? 'Create account' : 'Welcome back',
-                          style: const TextStyle(
-                            color: Color(0xff194c3b),
-                            fontSize: 30,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _isRegistering
-                              ? 'Join us in helping your community'
-                              : 'Sign in to continue helping your community',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        if (_isRegistering) ...[
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: _inputDecoration(
-                              'Full name',
-                              Icons.badge_outlined,
-                            ),
-                            validator: (value) => _required(value, 'Name'),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        TextFormField(
-                          controller: _usernameController,
-                          keyboardType: _isRegistering
-                              ? TextInputType.text
-                              : TextInputType.emailAddress,
-                          decoration: _inputDecoration(
-                            _isRegistering ? 'Username' : 'Email address',
-                            _isRegistering
-                                ? Icons.account_circle_outlined
-                                : Icons.mail_outline,
-                          ),
-                          validator: (value) => _required(
-                            value,
-                            _isRegistering ? 'Username' : 'Email address',
-                          ),
-                        ),
-                        if (_isRegistering) ...[
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: _inputDecoration(
-                              'Email',
-                              Icons.email_outlined,
-                            ),
-                            validator: (value) => _required(value, 'Email'),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _hidePassword,
-                          decoration:
-                              _inputDecoration(
-                                'Password',
-                                Icons.lock_outline,
-                              ).copyWith(
-                                suffixIcon: IconButton(
-                                  onPressed: () => setState(
-                                    () => _hidePassword = !_hidePassword,
-                                  ),
-                                  icon: Icon(
-                                    _hidePassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                  ),
-                                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Container(
+                    padding: EdgeInsets.fromLTRB(
+                      compact ? 18 : 30,
+                      compact ? 20 : 24,
+                      compact ? 18 : 30,
+                      20,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              _isRegistering
+                                  ? 'Create account'
+                                  : 'Welcome back',
+                              style: const TextStyle(
+                                color: Color(0xff194c3b),
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
                               ),
-                          validator: (value) => _required(value, 'Password'),
-                        ),
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            _errorMessage!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
                             ),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        FilledButton(
-                          onPressed: _submitting ? null : _submit,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xff2d7355),
-                            minimumSize: const Size.fromHeight(58),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: _submitting
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Text(_isRegistering ? 'Sign up' : 'Log in'),
-                        ),
-                        if (!_isRegistering)
-                          Row(
-                            children: [
-                              Checkbox(
-                                value: _rememberMe,
-                                onChanged: (value) => setState(
-                                  () => _rememberMe = value ?? false,
-                                ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _isRegistering
+                                  ? 'Join us in helping your community'
+                                  : 'Sign in to continue helping your community',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 16,
                               ),
-                              const Text('Remember me'),
-                              const Spacer(),
-                              TextButton(
-                                onPressed: () async {
-                                  final email = _usernameController.text.trim();
-                                  if (email.isEmpty) return;
-                                  await firebase_auth.FirebaseAuth.instance
-                                      .sendPasswordResetEmail(email: email);
-                                  if (!mounted) return;
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Password reset email sent.',
+                            ),
+                            const SizedBox(height: 24),
+                            if (_isRegistering) ...[
+                              TextFormField(
+                                controller: _nameController,
+                                decoration: _inputDecoration(
+                                  'Full name',
+                                  Icons.badge_outlined,
+                                ),
+                                validator: (value) => _required(value, 'Name'),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            TextFormField(
+                              controller: _usernameController,
+                              keyboardType: _isRegistering
+                                  ? TextInputType.text
+                                  : TextInputType.emailAddress,
+                              decoration: _inputDecoration(
+                                _isRegistering ? 'Username' : 'Email address',
+                                _isRegistering
+                                    ? Icons.account_circle_outlined
+                                    : Icons.mail_outline,
+                              ),
+                              validator: (value) => _required(
+                                value,
+                                _isRegistering ? 'Username' : 'Email address',
+                              ),
+                            ),
+                            if (_isRegistering) ...[
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                decoration: _inputDecoration(
+                                  'Email',
+                                  Icons.email_outlined,
+                                ),
+                                validator: (value) => _required(value, 'Email'),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _hidePassword,
+                              decoration:
+                                  _inputDecoration(
+                                    'Password',
+                                    Icons.lock_outline,
+                                  ).copyWith(
+                                    suffixIcon: IconButton(
+                                      onPressed: () => setState(
+                                        () => _hidePassword = !_hidePassword,
+                                      ),
+                                      icon: Icon(
+                                        _hidePassword
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
                                       ),
                                     ),
+                                  ),
+                              validator: (value) =>
+                                  _required(value, 'Password'),
+                            ),
+                            if (_errorMessage != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                _errorMessage!,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 24),
+                            FilledButton(
+                              onPressed: _submitting ? null : _submit,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xff2d7355),
+                                minimumSize: const Size.fromHeight(58),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: _submitting
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(_isRegistering ? 'Sign up' : 'Log in'),
+                            ),
+                            if (!_isRegistering)
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Checkbox(
+                                        value: _rememberMe,
+                                        onChanged: (value) => setState(
+                                          () => _rememberMe = value ?? false,
+                                        ),
+                                      ),
+                                      const Text('Remember me'),
+                                    ],
+                                  ),
+                                  TextButton(
+                                    onPressed: () async {
+                                      final email = _usernameController.text
+                                          .trim();
+                                      if (email.isEmpty) return;
+                                      await firebase_auth.FirebaseAuth.instance
+                                          .sendPasswordResetEmail(email: email);
+                                      if (!mounted) return;
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Password reset email sent.',
+                                              ),
+                                            ),
+                                          );
+                                    },
+                                    child: const Text('Forgot password?'),
+                                  ),
+                                ],
+                              ),
+                            const SizedBox(height: 14),
+                            if (compact)
+                              Center(
+                                child: Text(
+                                  'or continue with',
+                                  style: TextStyle(color: Colors.grey.shade500),
+                                ),
+                              )
+                            else
+                              Row(
+                                children: [
+                                  const Expanded(child: Divider()),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    child: Text(
+                                      'or continue with',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade500,
+                                      ),
+                                    ),
+                                  ),
+                                  const Expanded(child: Divider()),
+                                ],
+                              ),
+                            const SizedBox(height: 14),
+                            if (!_isRegistering)
+                              LayoutBuilder(
+                                builder: (context, socialConstraints) {
+                                  final stackButtons =
+                                      socialConstraints.maxWidth < 320;
+                                  final buttonWidth = stackButtons
+                                      ? socialConstraints.maxWidth
+                                      : (socialConstraints.maxWidth - 14) / 2;
+                                  return Wrap(
+                                    spacing: 14,
+                                    runSpacing: 10,
+                                    children: [
+                                      SizedBox(
+                                        width: buttonWidth,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () {},
+                                          icon: const Text(
+                                            'G',
+                                            style: TextStyle(
+                                              color: Colors.red,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          label: const Text('Google'),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: buttonWidth,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () {},
+                                          icon: const Text(
+                                            'f',
+                                            style: TextStyle(
+                                              color: Colors.blue,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          label: const Text('Facebook'),
+                                        ),
+                                      ),
+                                    ],
                                   );
                                 },
-                                child: const Text('Forgot password?'),
                               ),
-                            ],
-                          ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            const Expanded(child: Divider()),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
+                            TextButton(
+                              onPressed: _toggleMode,
                               child: Text(
-                                'or continue with',
-                                style: TextStyle(color: Colors.grey.shade500),
+                                _isRegistering
+                                    ? 'Already have an account? Log in'
+                                    : 'New here? Create an account',
                               ),
                             ),
-                            const Expanded(child: Divider()),
                           ],
                         ),
-                        const SizedBox(height: 14),
-                        if (!_isRegistering)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {},
-                                  icon: const Text(
-                                    'G',
-                                    style: TextStyle(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  label: const Text('Google'),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {},
-                                  icon: const Text(
-                                    'f',
-                                    style: TextStyle(
-                                      color: Colors.blue,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  label: const Text('Facebook'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        TextButton(
-                          onPressed: _toggleMode,
-                          child: Text(
-                            _isRegistering
-                                ? 'Already have an account? Log in'
-                                : 'New here? Create an account',
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

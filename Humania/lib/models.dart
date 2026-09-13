@@ -21,6 +21,7 @@ class UserAccount {
     this.profileAvatarIndex = 0,
     this.organizationName,
     this.organizationDetails,
+    this.isAdmin = false,
   });
 
   String name;
@@ -31,6 +32,7 @@ class UserAccount {
   int profileAvatarIndex;
   String? organizationName;
   String? organizationDetails;
+  bool isAdmin;
 }
 
 class DonationItem {
@@ -85,7 +87,10 @@ class DonationReview {
   final String? review;
 }
 
-final database = FirebaseDatabase.instance;
+final database = FirebaseDatabase.instanceFor(
+  app: Firebase.app(),
+  databaseURL: firebaseDatabaseUrl,
+);
 
 Map<String, dynamic> donationData(DonationItem item) {
   return {

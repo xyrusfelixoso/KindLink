@@ -17,9 +17,131 @@ class _CampaignHubPage extends StatelessWidget {
   final UserAccount user;
 
   @override
-  Widget build(BuildContext context) => role == 'Organization'
-      ? _OrganizationCampaignsPage(user: user)
-      : _DonorCampaignsPage(user: user);
+  Widget build(BuildContext context) => switch (role) {
+    'Organization' => _OrganizationCampaignsPage(user: user),
+    'Admin' when user.isAdmin => const _AdminOrganizationVerificationPage(),
+    _ => _DonorCampaignsPage(user: user),
+  };
+}
+
+class _AdminOrganizationVerificationPage extends StatelessWidget {
+  const _AdminOrganizationVerificationPage();
+
+  Future<void> _setStatus(
+    BuildContext context,
+    String organizationId,
+    String status,
+  ) async {
+    final adminUid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (adminUid == null) return;
+    final adminSnapshot = await database.ref('users/$adminUid/isAdmin').get();
+    final signedInEmail =
+        firebase_auth.FirebaseAuth.instance.currentUser?.email;
+    if (adminSnapshot.value != true && !isDesignatedAdminEmail(signedInEmail)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Admin access required.')));
+      }
+      return;
+    }
+    await database.ref('organizations/$organizationId').update({
+      'verificationStatus': status,
+      'verifiedBy': adminUid,
+      'verifiedAt': ServerValue.timestamp,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Organization verification'),
+      actions: [
+        IconButton(
+          tooltip: 'Verify help requests',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const _HelpRequestModerationPage(),
+            ),
+          ),
+          icon: const Icon(Icons.fact_check_outlined),
+        ),
+      ],
+    ),
+    body: StreamBuilder<DatabaseEvent>(
+      stream: database.ref('organizations').onValue,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final raw = snapshot.data!.snapshot.value;
+        final organizations = <Map<String, dynamic>>[];
+        if (raw is Map) {
+          for (final entry in raw.entries) {
+            if (entry.value is! Map) continue;
+            organizations.add({
+              'id': entry.key.toString(),
+              ...Map<String, dynamic>.from(entry.value as Map),
+            });
+          }
+        }
+        if (organizations.isEmpty) {
+          return const Center(child: Text('No organizations to review.'));
+        }
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: organizations.map((organization) {
+            final status =
+                organization['verificationStatus'] as String? ?? 'pending';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      organization['name'] as String? ?? 'Organization',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(organization['details'] as String? ?? 'No details'),
+                    const SizedBox(height: 8),
+                    Chip(label: Text(status.toUpperCase())),
+                    if (status == 'pending')
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => _setStatus(
+                              context,
+                              organization['id'] as String,
+                              'rejected',
+                            ),
+                            child: const Text('Reject'),
+                          ),
+                          FilledButton.icon(
+                            onPressed: () => _setStatus(
+                              context,
+                              organization['id'] as String,
+                              'verified',
+                            ),
+                            icon: const Icon(Icons.verified_outlined),
+                            label: const Text('Verify'),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    ),
+  );
 }
 
 class _OrganizationCampaignsPage extends StatelessWidget {
@@ -95,7 +217,19 @@ class _DonorCampaignsPage extends StatelessWidget {
   final UserAccount user;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Needed items')),
+    appBar: AppBar(
+      title: const Text('Needed items'),
+      actions: [
+        IconButton(
+          tooltip: 'My pledges',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const _DonorPledgesPage()),
+          ),
+          icon: const Icon(Icons.handshake_outlined),
+        ),
+      ],
+    ),
     body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('campaigns')
@@ -121,6 +255,94 @@ class _DonorCampaignsPage extends StatelessWidget {
       },
     ),
   );
+}
+
+class _DonorPledgesPage extends StatelessWidget {
+  const _DonorPledgesPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    return Scaffold(
+      appBar: AppBar(title: const Text('My donation pledges')),
+      body: uid == null
+          ? const Center(child: Text('Sign in to view your pledges.'))
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('campaignDonations')
+                  .where('donorId', isEqualTo: uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('No pledges submitted yet.'));
+                }
+                return ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: snapshot.data!.docs.map((doc) {
+                    final pledge = doc.data();
+                    final status = pledge['status'] as String? ?? 'Pending';
+                    final handover = pledge['handoverMethod'] as String?;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pledge['campaignTitle'] as String? ?? 'Campaign',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 17,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text('Status: $status'),
+                            if (handover != null) Text('Handover: $handover'),
+                            if (status == 'Approved' && handover == null) ...[
+                              const SizedBox(height: 12),
+                              const Text('Choose how to hand over the items:'),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () => doc.reference.update({
+                                      'handoverMethod': 'Drop-off',
+                                      'handoverSelectedAt':
+                                          FieldValue.serverTimestamp(),
+                                    }),
+                                    icon: const Icon(Icons.store_outlined),
+                                    label: const Text('Drop-off'),
+                                  ),
+                                  FilledButton.icon(
+                                    onPressed: () => doc.reference.update({
+                                      'handoverMethod': 'Pickup',
+                                      'handoverSelectedAt':
+                                          FieldValue.serverTimestamp(),
+                                    }),
+                                    icon: const Icon(
+                                      Icons.local_shipping_outlined,
+                                    ),
+                                    label: const Text('Pickup'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+    );
+  }
 }
 
 class _CampaignCard extends StatelessWidget {
@@ -199,6 +421,7 @@ class _AddCampaignItemDialogState extends State<_AddCampaignItemDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: const Text('Add needed item'),
     content: Form(
       key: _formKey,
@@ -265,15 +488,30 @@ class _CreateCampaignPage extends StatefulWidget {
 
 class _CreateCampaignPageState extends State<_CreateCampaignPage> {
   final _title = TextEditingController();
+  final _beneficiaries = TextEditingController();
+  final _location = TextEditingController();
   final _description = TextEditingController();
   final _items = <Map<String, dynamic>>[];
+  DateTime? _deadline;
   bool _saving = false;
 
   @override
   void dispose() {
     _title.dispose();
+    _beneficiaries.dispose();
+    _location.dispose();
     _description.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDeadline() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _deadline ?? DateTime.now().add(const Duration(days: 7)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+    );
+    if (selected != null && mounted) setState(() => _deadline = selected);
   }
 
   Future<void> _addItem() async {
@@ -297,9 +535,36 @@ class _CreateCampaignPageState extends State<_CreateCampaignPage> {
       ).showSnackBar(const SnackBar(content: Text('Enter a campaign title.')));
       return;
     }
+    if (_beneficiaries.text.trim().isEmpty ||
+        _location.text.trim().isEmpty ||
+        _description.text.trim().isEmpty ||
+        _deadline == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Complete the beneficiaries, location, description, and deadline.',
+          ),
+        ),
+      );
+      return;
+    }
     if (_items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Add at least one needed item.')),
+      );
+      return;
+    }
+    final verification = await database
+        .ref('organizations/${widget.organizationId}/verificationStatus')
+        .get();
+    if (verification.value != 'verified') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'An admin must verify your organization before you can publish campaigns.',
+          ),
+        ),
       );
       return;
     }
@@ -312,7 +577,10 @@ class _CreateCampaignPageState extends State<_CreateCampaignPage> {
         'organizationId': widget.organizationId,
         'organizationName': widget.user.organizationName ?? widget.user.name,
         'title': _title.text.trim(),
+        'beneficiaries': _beneficiaries.text.trim(),
+        'location': _location.text.trim(),
         'description': _description.text.trim(),
+        'deadline': Timestamp.fromDate(_deadline!),
         'status': 'published',
         'itemCount': _items.length,
         'createdAt': FieldValue.serverTimestamp(),
@@ -359,13 +627,42 @@ class _CreateCampaignPageState extends State<_CreateCampaignPage> {
       children: [
         TextField(
           controller: _title,
-          decoration: const InputDecoration(labelText: 'Campaign title'),
+          decoration: const InputDecoration(
+            labelText: 'Campaign title',
+            prefixIcon: Icon(Icons.campaign_outlined),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _beneficiaries,
+          decoration: const InputDecoration(
+            labelText: 'Beneficiaries',
+            prefixIcon: Icon(Icons.groups_outlined),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _location,
+          decoration: const InputDecoration(
+            labelText: 'Location',
+            prefixIcon: Icon(Icons.location_on_outlined),
+          ),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _description,
           maxLines: 3,
           decoration: const InputDecoration(labelText: 'Description'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _pickDeadline,
+          icon: const Icon(Icons.event_outlined),
+          label: Text(
+            _deadline == null
+                ? 'Select deadline'
+                : 'Deadline: ${formatPostedDate(_deadline!)}',
+          ),
         ),
         const SizedBox(height: 18),
         Row(
@@ -418,9 +715,93 @@ class _CampaignItemsPage extends StatelessWidget {
   final Map<String, dynamic> campaign;
   final bool organization;
   final UserAccount? user;
+
+  Future<void> _postDistributionReport(BuildContext context) async {
+    final summary = TextEditingController();
+    final beneficiaries = TextEditingController();
+    final distributedItems = TextEditingController();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        scrollable: true,
+        title: const Text('Post distribution report'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: beneficiaries,
+              decoration: const InputDecoration(
+                labelText: 'Beneficiaries reached',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: distributedItems,
+              decoration: const InputDecoration(labelText: 'Items distributed'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: summary,
+              minLines: 3,
+              maxLines: 5,
+              decoration: const InputDecoration(labelText: 'Report summary'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Post report'),
+          ),
+        ],
+      ),
+    );
+    if (submit != true ||
+        beneficiaries.text.trim().isEmpty ||
+        distributedItems.text.trim().isEmpty ||
+        summary.text.trim().isEmpty) {
+      return;
+    }
+    final firestore = FirebaseFirestore.instance;
+    final batch = firestore.batch();
+    batch.set(firestore.collection('campaignReports').doc(), {
+      'campaignId': campaignId,
+      'organizationId': campaign['organizationId'],
+      'campaignTitle': campaign['title'],
+      'beneficiariesReached': beneficiaries.text.trim(),
+      'itemsDistributed': distributedItems.text.trim(),
+      'summary': summary.text.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    batch.update(firestore.collection('campaigns').doc(campaignId), {
+      'lastDistributionReportAt': FieldValue.serverTimestamp(),
+      'distributionReportCount': FieldValue.increment(1),
+    });
+    await batch.commit();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Distribution report posted.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(campaign['title'] ?? 'Campaign')),
+    appBar: AppBar(
+      title: Text(campaign['title'] ?? 'Campaign'),
+      actions: [
+        if (organization)
+          IconButton(
+            tooltip: 'Post distribution report',
+            onPressed: () => _postDistributionReport(context),
+            icon: const Icon(Icons.post_add_outlined),
+          ),
+      ],
+    ),
     floatingActionButton: organization || user == null
         ? null
         : FloatingActionButton.extended(
@@ -446,47 +827,108 @@ class _CampaignItemsPage extends StatelessWidget {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
+        final itemDocs = snapshot.data!.docs;
+        final totalNeeded = itemDocs.fold<num>(
+          0,
+          (total, doc) => total + (doc.data()['quantityNeeded'] as num? ?? 0),
+        );
+        final totalReceived = itemDocs.fold<num>(
+          0,
+          (total, doc) => total + (doc.data()['quantityReceived'] as num? ?? 0),
+        );
+        final deadline = campaign['deadline'] is Timestamp
+            ? (campaign['deadline'] as Timestamp).toDate()
+            : null;
         return ListView(
           padding: const EdgeInsets.all(20),
-          children: snapshot.data!.docs.map((doc) {
-            final item = doc.data();
-            final needed = item['quantityNeeded'] as num? ?? 0;
-            final received = item['quantityReceived'] as num? ?? 0;
-            final remaining = item['quantityRemaining'] as num? ?? 0;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
+          children: [
+            Card(
+              margin: const EdgeInsets.only(bottom: 16),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item['itemName'] ?? 'Item',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '${item['preferredCondition'] ?? ''}\n${received.toInt()} / ${needed.toInt()} received • ${remaining.toInt()} remaining',
+                      campaign['title'] ?? 'Campaign',
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: needed == 0 ? 0 : (received / needed).clamp(0, 1),
+                    Text(
+                      'Beneficiaries: ${campaign['beneficiaries'] ?? 'Not specified'}',
                     ),
-                    if (!organization && remaining > 0)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton(
-                          onPressed: () => _offer(context, doc.id, item),
-                          child: const Text('Donate this item'),
-                        ),
+                    Text(
+                      'Location: ${campaign['location'] ?? 'Not specified'}',
+                    ),
+                    if ((campaign['description'] as String? ?? '').isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(campaign['description']),
                       ),
+                    if (deadline != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text('Deadline: ${formatPostedDate(deadline)}'),
+                      ),
+                    const SizedBox(height: 14),
+                    Text(
+                      '${totalReceived.toInt()} of ${totalNeeded.toInt()} items received',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    LinearProgressIndicator(
+                      value: totalNeeded == 0
+                          ? 0
+                          : (totalReceived / totalNeeded).clamp(0, 1),
+                    ),
                   ],
                 ),
               ),
-            );
-          }).toList(),
+            ),
+            ...itemDocs.map((doc) {
+              final item = doc.data();
+              final needed = item['quantityNeeded'] as num? ?? 0;
+              final received = item['quantityReceived'] as num? ?? 0;
+              final remaining = item['quantityRemaining'] as num? ?? 0;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item['itemName'] ?? 'Item',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${item['preferredCondition'] ?? ''}\n${received.toInt()} / ${needed.toInt()} received • ${remaining.toInt()} remaining',
+                      ),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: needed == 0
+                            ? 0
+                            : (received / needed).clamp(0, 1),
+                      ),
+                      if (!organization && remaining > 0)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton(
+                            onPressed: () => _offer(context, doc.id, item),
+                            child: const Text('Donate this item'),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            _CampaignReportsSection(campaignId: campaignId),
+          ],
         );
       },
     ),
@@ -504,6 +946,7 @@ class _CampaignItemsPage extends StatelessWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
           title: Text('Donate ${item['itemName']}'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -518,6 +961,7 @@ class _CampaignItemsPage extends StatelessWidget {
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 initialValue: condition,
+                isExpanded: true,
                 items: _donationConditionOptions(condition)
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                     .toList(),
@@ -556,6 +1000,7 @@ class _CampaignItemsPage extends StatelessWidget {
     final donation = firestore.collection('campaignDonations').doc();
     final donationItem = firestore.collection('donationItems').doc();
     final campaignItem = firestore.collection('campaignItems').doc(itemId);
+    final notification = firestore.collection('notifications').doc();
     try {
       await firestore.runTransaction((tx) async {
         final snapshot = await tx.get(campaignItem);
@@ -587,6 +1032,16 @@ class _CampaignItemsPage extends StatelessWidget {
           'quantityReceived': 0,
           'condition': condition,
         });
+        tx.set(notification, {
+          'recipientId': campaign['organizationId'],
+          'type': 'campaignPledge',
+          'campaignId': campaignId,
+          'donationId': donation.id,
+          'title': 'New donation pledge',
+          'message': '${user?.name ?? 'A donor'} pledged ${item['itemName']}.',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       });
     } catch (error) {
       if (context.mounted) {
@@ -604,6 +1059,72 @@ class _CampaignItemsPage extends StatelessWidget {
       );
     }
   }
+}
+
+class _CampaignReportsSection extends StatelessWidget {
+  const _CampaignReportsSection({required this.campaignId});
+  final String campaignId;
+
+  @override
+  Widget build(BuildContext context) =>
+      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('campaignReports')
+            .where('campaignId', isEqualTo: campaignId)
+            .snapshots(),
+        builder: (context, snapshot) {
+          final reports = snapshot.data?.docs ?? [];
+          if (reports.isEmpty) return const SizedBox.shrink();
+          reports.sort((a, b) {
+            final aTime = a.data()['createdAt'] as Timestamp?;
+            final bTime = b.data()['createdAt'] as Timestamp?;
+            return (bTime?.millisecondsSinceEpoch ?? 0).compareTo(
+              aTime?.millisecondsSinceEpoch ?? 0,
+            );
+          });
+          return Card(
+            margin: const EdgeInsets.only(top: 4, bottom: 90),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Distribution reports',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...reports.map((report) {
+                    final data = report.data();
+                    final createdAt = data['createdAt'] as Timestamp?;
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            data['summary'] ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            'Beneficiaries: ${data['beneficiariesReached']}',
+                          ),
+                          Text('Items: ${data['itemsDistributed']}'),
+                          if (createdAt != null)
+                            Text(
+                              formatPostedDate(createdAt.toDate()),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          );
+        },
+      );
 }
 
 class _MultiItemOfferPage extends StatefulWidget {
@@ -643,6 +1164,7 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
     try {
       final firestore = FirebaseFirestore.instance;
       final donation = firestore.collection('campaignDonations').doc();
+      final notification = firestore.collection('notifications').doc();
       await firestore.runTransaction((tx) async {
         final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
         for (final item in selected) {
@@ -667,6 +1189,17 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
           'itemCount': selected.length,
           'status': 'Pending',
           'message': _message.text.trim(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        tx.set(notification, {
+          'recipientId': widget.campaign['organizationId'],
+          'type': 'campaignPledge',
+          'campaignId': widget.campaignId,
+          'donationId': donation.id,
+          'title': 'New donation pledge',
+          'message':
+              '${widget.user.name} pledged ${selected.length} item types.',
+          'read': false,
           'createdAt': FieldValue.serverTimestamp(),
         });
         for (final item in selected) {
@@ -782,6 +1315,7 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
                           initialValue: selectedCondition,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Condition',
                           ),
@@ -931,6 +1465,7 @@ class _OrganizationOffersPage extends StatelessWidget {
       final confirmed = await showDialog<int>(
         context: context,
         builder: (context) => AlertDialog(
+          scrollable: true,
           title: Text('Actually received: ${data['itemName']}'),
           content: TextField(
             controller: controller,
@@ -974,9 +1509,8 @@ class _OrganizationOffersPage extends StatelessWidget {
       });
     }
     await donation.reference.update({
-      'status': 'Completed',
+      'status': 'Received',
       'receivedAt': FieldValue.serverTimestamp(),
-      'completedAt': FieldValue.serverTimestamp(),
     });
   }
 }
@@ -1018,6 +1552,11 @@ class _OrganizationOfferDetailsPage extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (data['handoverMethod'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Handover: ${data['handoverMethod']}'),
+                ),
               if ((data['message'] as String? ?? '').isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
@@ -1069,7 +1608,18 @@ class _OrganizationOfferDetailsPage extends StatelessWidget {
                     ),
                   ],
                 ),
-              if (data['status'] == 'Approved')
+              if (data['status'] == 'Approved' &&
+                  data['handoverMethod'] == null)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(14),
+                    child: Text(
+                      'Waiting for the donor to choose drop-off or pickup.',
+                    ),
+                  ),
+                ),
+              if (data['status'] == 'Approved' &&
+                  data['handoverMethod'] != null)
                 FilledButton.icon(
                   onPressed: () async {
                     await onStatus('Received');

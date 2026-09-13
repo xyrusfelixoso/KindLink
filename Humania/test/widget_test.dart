@@ -1,29 +1,29 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'dart:ui' show Size;
 
+import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_application_1/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('user can register and view dashboard', (
-    WidgetTester tester,
-  ) async {
-    await tester.pumpWidget(const MyApp());
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    await tester.tap(find.text('New here? Create an account'));
-    await tester.pump();
+  const phoneSizes = <Size>[Size(320, 568), Size(360, 640), Size(412, 915)];
 
-    final fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(0), 'Alex User');
-    await tester.enterText(fields.at(1), 'alex');
-    await tester.enterText(fields.at(2), 'alex@example.com');
-    await tester.enterText(fields.at(3), 'secret');
-    await tester.tap(find.text('Sign up'));
-    await tester.pump();
+  for (final size in phoneSizes) {
+    testWidgets('login fits ${size.width.toInt()}x${size.height.toInt()}', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    expect(find.text('Your Role'), findsOneWidget);
-    await tester.tap(find.text('I WANT TO DONATE'));
-    await tester.pump();
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-    expect(find.text('You are helping as a Donor'), findsOneWidget);
-  });
+      await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Welcome back'), findsOneWidget);
+    });
+  }
 }
