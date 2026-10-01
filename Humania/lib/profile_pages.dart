@@ -30,7 +30,7 @@ class _ReferenceProfileTab extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
-          color: const Color(0xff1c6349),
+          color: kindLinkPrimaryDark,
           child: Column(
             children: [
               CircleAvatar(
@@ -106,7 +106,7 @@ class _ReferenceProfileTab extends StatelessWidget {
               const Text(
                 'My Account',
                 style: TextStyle(
-                  color: Color(0xff234c3d),
+                  color: kindLinkPrimaryDark,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -341,7 +341,7 @@ class _ReviewsPage extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xff194c3b),
+                            color: kindLinkPrimaryDark,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -599,15 +599,15 @@ class _OrganizationPageState extends State<_OrganizationPage> {
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
           leading: const CircleAvatar(
-            backgroundColor: Color(0xffd9f4df),
-            child: Icon(Icons.apartment_outlined, color: Color(0xff19704f)),
+            backgroundColor: kindLinkCream,
+            child: Icon(Icons.apartment_outlined, color: kindLinkEmerald),
           ),
           title: Text(
             organization['name']!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: Color(0xff194c3b),
+              color: kindLinkPrimaryDark,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -653,6 +653,7 @@ class _OrganizationPageState extends State<_OrganizationPage> {
       if (isNewOrganization) 'verificationStatus': 'pending',
     });
     await database.ref('users/$uid').update({
+      'organizationId': uid,
       'organizationName': name,
       'organizationDetails': _detailsController.text.trim(),
     });
@@ -953,7 +954,7 @@ class _OrganizationPageState extends State<_OrganizationPage> {
                   const Text(
                     'Your organization',
                     style: TextStyle(
-                      color: Color(0xff194c3b),
+                      color: kindLinkPrimaryDark,
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1234,9 +1235,8 @@ class _OrganizationPageState extends State<_OrganizationPage> {
                                                 onPressed: _saveOrganization,
                                                 style: FilledButton.styleFrom(
                                                   backgroundColor: Colors.white,
-                                                  foregroundColor: const Color(
-                                                    0xff19704f,
-                                                  ),
+                                                  foregroundColor:
+                                                      kindLinkEmerald,
                                                 ),
                                                 icon: const Icon(
                                                   Icons.save_outlined,
@@ -1383,7 +1383,7 @@ class _OrganizationPageState extends State<_OrganizationPage> {
                   const Text(
                     'Join with invite code',
                     style: TextStyle(
-                      color: Color(0xff194c3b),
+                      color: kindLinkPrimaryDark,
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1419,7 +1419,7 @@ class _OrganizationPageState extends State<_OrganizationPage> {
                         child: Text(
                           'Available organizations',
                           style: TextStyle(
-                            color: Color(0xff194c3b),
+                            color: kindLinkPrimaryDark,
                             fontSize: 19,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1453,7 +1453,7 @@ class _OrganizationPageState extends State<_OrganizationPage> {
                       ),
                       child: const Text(
                         'No organizations have been created yet.',
-                        style: TextStyle(color: Color(0xff527d6d)),
+                        style: TextStyle(color: kindLinkSecondaryText),
                       ),
                     )
                   else
@@ -1496,7 +1496,7 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
     super.initState();
     _nameController = TextEditingController(text: widget.user.name);
     _emailController = TextEditingController(text: widget.user.email);
-    _passwordController = TextEditingController(text: widget.user.password);
+    _passwordController = TextEditingController();
     _profileImageBytes = widget.user.profileImageBytes;
     _profileAvatarIndex = widget.user.profileAvatarIndex;
   }
@@ -1531,7 +1531,7 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
       if (authUser.email != email) {
         await authUser.verifyBeforeUpdateEmail(email);
       }
-      if (_passwordController.text != widget.user.password) {
+      if (_passwordController.text.isNotEmpty) {
         await authUser.updatePassword(_passwordController.text);
       }
       await database.ref('users/${authUser.uid}').update({
@@ -1541,16 +1541,20 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
       });
     } on firebase_auth.FirebaseAuthException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message ?? 'Unable to update account.')),
-        );
+        final message = switch (error.code) {
+          'requires-recent-login' => 'For your security, sign out and sign in again before changing account credentials.',
+          'weak-password' => 'Choose a stronger password and try again.',
+          'invalid-email' => 'Enter a valid email address.',
+          _ => 'Unable to update the account. Please try again.',
+        };
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
       }
       return;
     }
     widget.user
       ..name = _nameController.text.trim()
-      ..email = _emailController.text.trim()
-      ..password = _passwordController.text;
+      ..email = _emailController.text.trim();
     widget.user.profileImageBytes = _profileImageBytes;
     widget.user.profileAvatarIndex = _profileAvatarIndex;
     widget.onSaved();
@@ -1575,7 +1579,7 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
                 onTap: _pickProfileImage,
                 child: CircleAvatar(
                   radius: 54,
-                  backgroundColor: const Color(0xffd9f4df),
+                  backgroundColor: kindLinkCream,
                   backgroundImage: _profileImageBytes == null
                       ? null
                       : MemoryImage(_profileImageBytes!),
@@ -1610,7 +1614,7 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: _profileAvatarIndex == index
-                            ? const Color(0xff19704f)
+                            ? kindLinkEmerald
                             : Colors.transparent,
                         width: 3,
                       ),
@@ -1650,20 +1654,24 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
             TextFormField(
               controller: _passwordController,
               obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [AutofillHints.newPassword],
               decoration: const InputDecoration(
-                labelText: 'Password',
+                labelText: 'New password (optional)',
+                helperText: 'Leave blank to keep your current password',
                 prefixIcon: Icon(Icons.lock_outline),
               ),
-              validator: (value) => value == null || value.length < 6
-                  ? 'Use at least 6 characters'
-                  : null,
+              validator: (value) => value == null || value.isEmpty
+                  ? null
+                  : AuthValidators.newPassword(value),
             ),
             const SizedBox(height: 24),
             FilledButton(
               onPressed: _save,
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
-                backgroundColor: const Color(0xff19704f),
+                backgroundColor: kindLinkEmerald,
               ),
               child: const Text('Save changes'),
             ),

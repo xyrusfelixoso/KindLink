@@ -17,7 +17,6 @@ class UserAccount {
     required this.name,
     required this.username,
     required this.email,
-    required this.password,
     this.profileAvatarIndex = 0,
     this.organizationName,
     this.organizationDetails,
@@ -27,7 +26,6 @@ class UserAccount {
   String name;
   String username;
   String email;
-  String password;
   Uint8List? profileImageBytes;
   int profileAvatarIndex;
   String? organizationName;

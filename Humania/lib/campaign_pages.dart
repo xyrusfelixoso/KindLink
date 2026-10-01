@@ -201,7 +201,7 @@ class _OrganizationCampaignsPage extends StatelessWidget {
                   );
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 112),
                   itemCount: docs.length,
                   itemBuilder: (_, index) =>
                       _CampaignCard(document: docs[index], organization: true),
@@ -802,21 +802,31 @@ class _CampaignItemsPage extends StatelessWidget {
           ),
       ],
     ),
-    floatingActionButton: organization || user == null
+    bottomNavigationBar: organization || user == null
         ? null
-        : FloatingActionButton.extended(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => _MultiItemOfferPage(
-                  campaignId: campaignId,
-                  campaign: campaign,
-                  user: user!,
+        : SafeArea(
+            top: false,
+            child: Container(
+              color: kindLinkCream,
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+              child: FilledButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => _MultiItemOfferPage(
+                      campaignId: campaignId,
+                      campaign: campaign,
+                      user: user!,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.playlist_add_check),
+                label: const Text('Donate multiple'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(58),
                 ),
               ),
             ),
-            icon: const Icon(Icons.playlist_add_check),
-            label: const Text('Donate multiple'),
           ),
     body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -1548,7 +1558,7 @@ class _OrganizationOfferDetailsPage extends StatelessWidget {
               Text(
                 'Status: ${data['status']}',
                 style: const TextStyle(
-                  color: Color(0xff19704f),
+                  color: kindLinkEmerald,
                   fontWeight: FontWeight.bold,
                 ),
               ),

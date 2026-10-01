@@ -44,7 +44,7 @@ class DashboardPage extends StatefulWidget {
   });
 
   final UserAccount user;
-  final VoidCallback onSignOut;
+  final Future<void> Function() onSignOut;
   final String role;
 
   @override
@@ -93,9 +93,16 @@ class _DashboardPageState extends State<DashboardPage>
     WidgetsBinding.instance.removeObserver(this);
     _authSubscription?.cancel();
     _connectionSubscription?.cancel();
-    _setPresence(false);
     _donationsSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _signOut() async {
+    // Publish Offline while the Firebase user identity is still available.
+    // FirebaseAuthService repeats this write as a final safeguard before it
+    // clears the authenticated session.
+    await _setPresence(false);
+    await widget.onSignOut();
   }
 
   Future<void> _startPresence() async {
@@ -438,7 +445,7 @@ class _DashboardPageState extends State<DashboardPage>
       _CampaignHubPage(role: widget.role, user: widget.user),
       _ReferenceProfileTab(
         user: widget.user,
-        onSignOut: widget.onSignOut,
+        onSignOut: _signOut,
         pickupRequests: _pickupRequests,
         reviews: _reviews,
         role: widget.role,
@@ -471,61 +478,63 @@ class _DashboardPageState extends State<DashboardPage>
     ];
     return Scaffold(
       body: SafeArea(bottom: false, child: pages[_selectedIndex]),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Post a donation',
-        onPressed: () async {
-          final item = await Navigator.of(context).push<DonationItem>(
-            MaterialPageRoute(
-              builder: (_) => _CreateDonationPage(user: widget.user),
-            ),
-          );
-          if (item != null) {
-            final localItem = DonationItem(
-              id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-              name: item.name,
-              details: item.details,
-              location: item.location,
-              donor: item.donor,
-              icon: item.icon,
-              postedAt: item.postedAt,
-              imageBytes: item.imageBytes,
-              imageUrl: item.imageUrl,
-              imageType: item.imageType,
-              imageName: item.imageName,
-              ownerUid: item.ownerUid,
-              locationPoint: item.locationPoint,
-              organizationName: item.organizationName,
-              organizationDetails: item.organizationDetails,
-              availability: item.availability,
-              ratingAverage: item.ratingAverage,
-              ratingCount: item.ratingCount,
-              ratingTotal: item.ratingTotal,
-            );
-            setState(() {
-              _HomeTabState.items.insert(0, localItem);
-            });
-            final error = await _saveDonation(item);
-            if (error == null) {
-              await _incrementDonatedCount();
-            }
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  error == null
-                      ? 'Donation posted successfully.'
-                      : 'Saved on this device. Firebase: $error',
-                ),
-              ),
-            );
-          }
-        },
-        backgroundColor: const Color(0xff19704f),
-        foregroundColor: Colors.white,
-        elevation: 5,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add, size: 32),
-      ),
+      floatingActionButton: _selectedIndex == 0
+          ? FloatingActionButton(
+              tooltip: 'Post a donation',
+              onPressed: () async {
+                final item = await Navigator.of(context).push<DonationItem>(
+                  MaterialPageRoute(
+                    builder: (_) => _CreateDonationPage(user: widget.user),
+                  ),
+                );
+                if (item != null) {
+                  final localItem = DonationItem(
+                    id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+                    name: item.name,
+                    details: item.details,
+                    location: item.location,
+                    donor: item.donor,
+                    icon: item.icon,
+                    postedAt: item.postedAt,
+                    imageBytes: item.imageBytes,
+                    imageUrl: item.imageUrl,
+                    imageType: item.imageType,
+                    imageName: item.imageName,
+                    ownerUid: item.ownerUid,
+                    locationPoint: item.locationPoint,
+                    organizationName: item.organizationName,
+                    organizationDetails: item.organizationDetails,
+                    availability: item.availability,
+                    ratingAverage: item.ratingAverage,
+                    ratingCount: item.ratingCount,
+                    ratingTotal: item.ratingTotal,
+                  );
+                  setState(() {
+                    _HomeTabState.items.insert(0, localItem);
+                  });
+                  final error = await _saveDonation(item);
+                  if (error == null) {
+                    await _incrementDonatedCount();
+                  }
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        error == null
+                            ? 'Donation posted successfully.'
+                            : 'Saved on this device. Firebase: $error',
+                      ),
+                    ),
+                  );
+                }
+              },
+              backgroundColor: kindLinkOrange,
+              foregroundColor: Colors.white,
+              elevation: 5,
+              shape: const CircleBorder(),
+              child: const Icon(Icons.add, size: 32),
+            )
+          : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: SafeArea(
         top: false,
@@ -603,7 +612,7 @@ class _BottomBarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? const Color(0xff19704f) : Colors.grey;
+    final color = selected ? kindLinkEmerald : Colors.grey;
     return Semantics(
       button: true,
       selected: selected,
@@ -668,13 +677,18 @@ class _HomeTabState extends State<_HomeTab> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 104),
       children: [
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: KindLinkLogo(height: 82, width: 230),
+        ),
+        const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xff1c6349), Color(0xff2d8a63)],
+              colors: [kindLinkEmerald, kindLinkPrimaryDark],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -760,7 +774,7 @@ class _HomeTabState extends State<_HomeTab> {
               child: Text(
                 'Available near you',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: const Color(0xff234c3d),
+                  color: kindLinkPrimaryDark,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -769,7 +783,7 @@ class _HomeTabState extends State<_HomeTab> {
               tooltip: 'Sort items',
               initialValue: _sortOption,
               onSelected: (option) => setState(() => _sortOption = option),
-              icon: const Icon(Icons.tune, color: Color(0xff2d7355)),
+              icon: const Icon(Icons.tune, color: kindLinkEmerald),
               itemBuilder: (context) => const [
                 PopupMenuItem(value: 'Nearby', child: Text('Nearest first')),
                 PopupMenuItem(value: 'A-Z', child: Text('Item name A-Z')),
@@ -961,7 +975,7 @@ class _MapTabState extends State<_MapTab> {
                           setState(() => _nearestItem = widget.items[index]),
                       child: const Icon(
                         Icons.location_on,
-                        color: Color(0xffffb300),
+                        color: kindLinkWarning,
                         size: 42,
                       ),
                     ),
@@ -1126,7 +1140,7 @@ class _MapTabState extends State<_MapTab> {
                 label: const Text('Suggest nearest item'),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
-                  backgroundColor: const Color(0xff2d7355),
+                  backgroundColor: kindLinkEmerald,
                 ),
               ),
             ],
@@ -1153,12 +1167,12 @@ class _HomeSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       decoration: BoxDecoration(
-        color: const Color(0xffe9f7ed),
+        color: kindLinkCream,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xff2d7355)),
+          Icon(icon, color: kindLinkEmerald),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
@@ -1167,7 +1181,7 @@ class _HomeSummary extends StatelessWidget {
                 Text(
                   value,
                   style: const TextStyle(
-                    color: Color(0xff194c3b),
+                    color: kindLinkPrimaryDark,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1176,7 +1190,7 @@ class _HomeSummary extends StatelessWidget {
                   label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Color(0xff527d6d)),
+                  style: const TextStyle(color: kindLinkSecondaryText),
                 ),
               ],
             ),
@@ -1326,7 +1340,7 @@ class _DonationsTabState extends State<_DonationsTab> {
           Text(
             'All donations',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: const Color(0xff194c3b),
+              color: kindLinkPrimaryDark,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1403,14 +1417,14 @@ class _DonationCard extends StatelessWidget {
         contentPadding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
         leading: CircleAvatar(
           radius: 28,
-          backgroundColor: const Color(0xffd9f4df),
+          backgroundColor: kindLinkCream,
           backgroundImage: item.imageBytes != null
               ? MemoryImage(item.imageBytes!)
               : item.imageUrl != null
               ? NetworkImage(item.imageUrl!)
               : null,
           child: item.imageBytes == null && item.imageUrl == null
-              ? Icon(item.icon, color: const Color(0xff2d7355), size: 28)
+              ? Icon(item.icon, color: kindLinkEmerald, size: 28)
               : null,
         ),
         title: Text(
@@ -1418,7 +1432,7 @@ class _DonationCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            color: Color(0xff194c3b),
+            color: kindLinkPrimaryDark,
             fontWeight: FontWeight.bold,
             fontSize: 17,
           ),
@@ -1647,7 +1661,7 @@ class _DonationLocationPickerState extends State<_DonationLocationPicker> {
                     height: 52,
                     child: const Icon(
                       Icons.location_on,
-                      color: Color(0xffd55b4a),
+                      color: kindLinkUrgent,
                       size: 46,
                     ),
                   ),
@@ -1666,7 +1680,7 @@ class _DonationLocationPickerState extends State<_DonationLocationPicker> {
                   children: [
                     const Icon(
                       Icons.touch_app_outlined,
-                      color: Color(0xff19704f),
+                      color: kindLinkEmerald,
                     ),
                     const SizedBox(width: 10),
                     Expanded(child: Text(widget.instruction)),
@@ -1688,12 +1702,12 @@ class _DonationImageFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     height: 240,
-    color: const Color(0xffd9f4df),
+    color: kindLinkCream,
     alignment: Alignment.center,
     child: const Icon(
       Icons.image_not_supported_outlined,
       size: 72,
-      color: Color(0xff19704f),
+      color: kindLinkEmerald,
     ),
   );
 }
@@ -1734,13 +1748,13 @@ class _DonationDetailsPage extends StatelessWidget {
             Container(
               height: 180,
               decoration: BoxDecoration(
-                color: const Color(0xffd9f4df),
+                color: kindLinkCream,
                 borderRadius: BorderRadius.circular(24),
               ),
               child: const Icon(
                 Icons.image_outlined,
                 size: 72,
-                color: Color(0xff19704f),
+                color: kindLinkEmerald,
               ),
             ),
           const SizedBox(height: 22),
@@ -1748,7 +1762,7 @@ class _DonationDetailsPage extends StatelessWidget {
             item.name,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: const Color(0xff194c3b),
+              color: kindLinkPrimaryDark,
             ),
           ),
           const SizedBox(height: 12),
@@ -1798,7 +1812,7 @@ class _DonationDetailsPage extends StatelessWidget {
             label: Text(isOwner ? 'Your donation' : 'Request pickup'),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
-              backgroundColor: const Color(0xff19704f),
+              backgroundColor: kindLinkEmerald,
             ),
           ),
         ],
@@ -1819,7 +1833,7 @@ class _DetailRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color(0xff19704f)),
+          Icon(icon, size: 20, color: kindLinkEmerald),
           const SizedBox(width: 10),
           Expanded(child: Text(text)),
         ],
@@ -1846,7 +1860,7 @@ class _EmptyDonations extends StatelessWidget {
           Icon(
             Icons.volunteer_activism_outlined,
             size: 52,
-            color: Color(0xff19704f),
+            color: kindLinkEmerald,
           ),
           SizedBox(height: 12),
           Text(
@@ -2061,7 +2075,7 @@ class _CreateDonationPageState extends State<_CreateDonationPage> {
               child: Container(
                 height: 190,
                 decoration: BoxDecoration(
-                  color: const Color(0xffe9f7ed),
+                  color: kindLinkCream,
                   borderRadius: BorderRadius.circular(18),
                   image: _imageBytes == null
                       ? null
@@ -2211,7 +2225,7 @@ class _CreateDonationPageState extends State<_CreateDonationPage> {
               label: Text(_posting ? 'Posting...' : 'Post donation'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
-                backgroundColor: const Color(0xff19704f),
+                backgroundColor: kindLinkEmerald,
               ),
             ),
           ],

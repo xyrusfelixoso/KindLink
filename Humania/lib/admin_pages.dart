@@ -70,12 +70,17 @@ class _AdminWebGateState extends State<_AdminWebGate> {
       }
       if (mounted) setState(() => _admin = credential.user);
     } on firebase_auth.FirebaseAuthException catch (error) {
-      if (mounted) setState(() => _error = error.message ?? 'Login failed.');
-    } on Exception catch (error) {
       if (mounted) {
         setState(
-          () => _error = error.toString().replaceFirst('Exception: ', ''),
+          () => _error = AuthErrorMapper.message(
+            operation: AuthOperation.signIn,
+            code: error.code,
+          ),
         );
+      }
+    } on Exception {
+      if (mounted) {
+        setState(() => _error = 'Unable to sign in. Please try again.');
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -115,16 +120,12 @@ class _AdminWebGateState extends State<_AdminWebGate> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.admin_panel_settings,
-                      size: 54,
-                      color: Color(0xff19704f),
-                    ),
-                    const SizedBox(height: 16),
+                    const KindLinkLogo(height: 130),
+                    const SizedBox(height: 18),
                     Text(
-                      'Humania Admin',
+                      'Administrator portal',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium
+                      style: Theme.of(context).textTheme.titleLarge
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 6),
@@ -146,6 +147,9 @@ class _AdminWebGateState extends State<_AdminWebGate> {
                     TextField(
                       controller: _password,
                       obscureText: true,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      autofillHints: const [AutofillHints.password],
                       onSubmitted: (_) => _login(),
                       decoration: const InputDecoration(
                         labelText: 'Password',
@@ -240,11 +244,25 @@ class _AdminShellState extends State<_AdminShell> {
               color: Colors.white,
               child: Row(
                 children: [
-                  const Icon(Icons.favorite, color: Color(0xff19704f)),
-                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 72,
+                    height: 54,
+                    child: ClipRect(
+                      child: Transform.scale(
+                        scale: 3,
+                        alignment: const Alignment(0, -0.25),
+                        child: Image.asset(
+                          'assets/images/kindlink-admin-mark.png',
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
                   const Text(
-                    'Humania Admin',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    'Admin',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
                   Text(widget.admin.email ?? 'Administrator'),
@@ -312,7 +330,9 @@ class _AdminOverview extends StatelessWidget {
             ?.copyWith(fontWeight: FontWeight.bold),
       ),
       const SizedBox(height: 6),
-      const Text('Live overview of the Humania support system.'),
+      const Text('Live overview of the KindLink community support network.'),
+      const SizedBox(height: 18),
+      const _KindLinkStatusFlow(),
       const SizedBox(height: 24),
       Wrap(
         spacing: 16,
@@ -379,6 +399,57 @@ class _AdminOverview extends StatelessWidget {
         ],
       ),
     ],
+  );
+}
+
+class _KindLinkStatusFlow extends StatelessWidget {
+  const _KindLinkStatusFlow();
+
+  static const _steps = [
+    ('Requested', Icons.pan_tool_alt_outlined),
+    ('Matched', Icons.handshake_outlined),
+    ('Preparing', Icons.inventory_2_outlined),
+    ('Delivered', Icons.local_shipping_outlined),
+    ('Confirmed', Icons.verified_outlined),
+  ];
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Request journey',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (var index = 0; index < _steps.length; index++) ...[
+                Chip(
+                  avatar: Icon(
+                    _steps[index].$2,
+                    size: 18,
+                    color: index == _steps.length - 1
+                        ? kindLinkSuccess
+                        : kindLinkEmerald,
+                  ),
+                  label: Text(_steps[index].$1),
+                ),
+                if (index < _steps.length - 1)
+                  const Icon(Icons.arrow_forward, size: 16),
+              ],
+            ],
+          ),
+        ],
+      ),
+    ),
   );
 }
 

@@ -19,30 +19,90 @@ class _RequestHelpPageState extends State<_RequestHelpPage> {
   LatLng? _point;
   final List<Map<String, String>> _organizations = [];
   String? _selectedOrganizationId;
+  String? _organizationMessage;
+  bool _loadingOrganization = true;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _loadVerifiedOrganizations();
+    _loadJoinedOrganization();
   }
 
-  Future<void> _loadVerifiedOrganizations() async {
-    final snapshot = await database.ref('organizations').get();
-    if (!mounted || snapshot.value is! Map) return;
-    final organizations = <Map<String, String>>[];
-    for (final entry in Map<Object?, Object?>.from(
-      snapshot.value! as Map,
-    ).entries) {
-      if (entry.value is! Map) continue;
-      final data = Map<Object?, Object?>.from(entry.value! as Map);
-      if (data['verificationStatus'] != 'verified') continue;
-      organizations.add({
-        'id': entry.key.toString(),
-        'name': data['name'] as String? ?? 'Organization',
+  Future<void> _loadJoinedOrganization() async {
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) {
+        setState(() {
+          _loadingOrganization = false;
+          _organizationMessage = 'Sign in to submit a help request.';
+        });
+      }
+      return;
+    }
+
+    try {
+      final profileSnapshot = await database.ref('users/$uid').get();
+      final profile = profileSnapshot.value is Map
+          ? Map<Object?, Object?>.from(profileSnapshot.value! as Map)
+          : <Object?, Object?>{};
+      var organizationId = profile['organizationId'] as String?;
+
+      // Existing organization owners may predate organizationId being saved
+      // on their user profile, so recognize an organization owned by the uid.
+      if (organizationId == null || organizationId.isEmpty) {
+        final ownedSnapshot = await database.ref('organizations/$uid').get();
+        final owned = ownedSnapshot.value is Map
+            ? Map<Object?, Object?>.from(ownedSnapshot.value! as Map)
+            : <Object?, Object?>{};
+        if (owned['ownerUid'] == uid) organizationId = uid;
+      }
+
+      if (organizationId == null || organizationId.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _loadingOrganization = false;
+          _organizationMessage =
+              'Join a verified organization before submitting a request.';
+        });
+        return;
+      }
+
+      final organizationSnapshot = await database
+          .ref('organizations/$organizationId')
+          .get();
+      final organization = organizationSnapshot.value is Map
+          ? Map<Object?, Object?>.from(organizationSnapshot.value! as Map)
+          : <Object?, Object?>{};
+      if (organization['verificationStatus'] != 'verified') {
+        if (!mounted) return;
+        setState(() {
+          _loadingOrganization = false;
+          _organizationMessage = 'Your organization must be verified before it can review requests.';
+        });
+        return;
+      }
+
+      final joinedOrganization = {
+        'id': organizationId,
+        'name': organization['name'] as String? ?? 'Organization',
+      };
+      if (!mounted) return;
+      setState(() {
+        _organizations
+          ..clear()
+          ..add(joinedOrganization);
+        _selectedOrganizationId = organizationId;
+        _organizationMessage = null;
+        _loadingOrganization = false;
+      });
+    } on Exception {
+      if (!mounted) return;
+      setState(() {
+        _loadingOrganization = false;
+        _organizationMessage = 'Unable to load your joined organization.';
       });
     }
-    setState(() => _organizations.addAll(organizations));
   }
 
   @override
@@ -91,12 +151,22 @@ class _RequestHelpPageState extends State<_RequestHelpPage> {
   }
 
   Future<void> _submit() async {
+    if (_selectedOrganizationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _organizationMessage ??
+                'Join a verified organization before submitting a request.',
+          ),
+        ),
+      );
+      return;
+    }
     if (_saving ||
         _title.text.trim().isEmpty ||
         _beneficiaries.text.trim().isEmpty ||
         _description.text.trim().isEmpty ||
         _neededItems.isEmpty ||
-        _selectedOrganizationId == null ||
         _point == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -147,7 +217,6 @@ class _RequestHelpPageState extends State<_RequestHelpPage> {
       }
       setState(() {
         _point = null;
-        _selectedOrganizationId = null;
         _neededItems.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -166,10 +235,8 @@ class _RequestHelpPageState extends State<_RequestHelpPage> {
     children: [
       Text(
         'Request help',
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-          color: const Color(0xff194c3b),
-          fontWeight: FontWeight.bold,
-        ),
+        style: Theme.of(context).textTheme.headlineSmall
+            ?.copyWith(color: kindLinkPrimaryDark, fontWeight: FontWeight.bold),
       ),
       const SizedBox(height: 6),
       const Text(
@@ -179,7 +246,7 @@ class _RequestHelpPageState extends State<_RequestHelpPage> {
       Text(
         'Requesting as ${widget.user.name} (@${widget.user.username})',
         style: const TextStyle(
-          color: Color(0xff19704f),
+          color: kindLinkEmerald,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -199,26 +266,24 @@ class _RequestHelpPageState extends State<_RequestHelpPage> {
                 decoration: const InputDecoration(labelText: 'Beneficiaries'),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedOrganizationId,
-                isExpanded: true,
+              InputDecorator(
                 decoration: const InputDecoration(
                   labelText: 'Organization to review this request',
                   prefixIcon: Icon(Icons.apartment_outlined),
                 ),
-                items: _organizations
-                    .map(
-                      (organization) => DropdownMenuItem(
-                        value: organization['id'],
-                        child: Text(
-                          organization['name']!,
-                          overflow: TextOverflow.ellipsis,
+                child: _loadingOrganization
+                    ? const LinearProgressIndicator()
+                    : Text(
+                        _organizations.isNotEmpty
+                            ? _organizations.single['name']!
+                            : _organizationMessage ?? 'No organization joined',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _organizations.isEmpty
+                              ? Theme.of(context).colorScheme.error
+                              : null,
                         ),
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setState(() => _selectedOrganizationId = value),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -975,7 +1040,7 @@ class _NotificationsPage extends StatelessWidget {
                           data['read'] == true
                               ? Icons.notifications_none
                               : Icons.notifications_active,
-                          color: const Color(0xff19704f),
+                          color: kindLinkEmerald,
                         ),
                         title: Text(data['title'] ?? 'Update'),
                         subtitle: Text(data['message'] ?? ''),
