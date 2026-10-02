@@ -45,6 +45,7 @@ const firebaseDatabaseUrl =
 const designatedAdminEmails = {'xyrusfelix@gmail.com'};
 
 const adminWeb = bool.fromEnvironment('ADMIN_WEB', defaultValue: true);
+const adminApp = bool.fromEnvironment('ADMIN_APP', defaultValue: false);
 const kindLinkEmerald = Color(0xff2a7f73);
 const kindLinkPrimaryDark = Color(0xff1f5f57);
 const kindLinkBlue = Color(0xff4a90e2);
@@ -352,7 +353,7 @@ class _MyAppState extends State<MyApp> {
           ),
         ),
       ),
-      home: kIsWeb && adminWeb
+      home: adminApp || (kIsWeb && adminWeb)
           ? const _AdminWebGate()
           : AuthGate(authService: _authService),
     );
