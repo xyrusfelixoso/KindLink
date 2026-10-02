@@ -267,10 +267,12 @@ class _AdminShellState extends State<_AdminShell> {
                   const Spacer(),
                   Text(widget.admin.email ?? 'Administrator'),
                   const SizedBox(width: 12),
-                  IconButton(
-                    tooltip: 'Sign out',
-                    onPressed: widget.onSignOut,
-                    icon: const Icon(Icons.logout),
+                  KindLinkPressScale(
+                    child: IconButton(
+                      tooltip: 'Sign out',
+                      onPressed: widget.onSignOut,
+                      icon: const Icon(Icons.logout),
+                    ),
                   ),
                 ],
               ),

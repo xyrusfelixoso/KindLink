@@ -50,15 +50,17 @@ class PasswordField extends StatelessWidget {
           ).copyWith(
             labelText: label,
             suffixIcon: ExcludeFocus(
-              child: IconButton(
-                tooltip: obscureText ? 'Show password' : 'Hide password',
-                onPressed: enabled
-                    ? () => onVisibilityChanged(!obscureText)
-                    : null,
-                icon: Icon(
-                  obscureText
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
+              child: KindLinkPressScale(
+                child: IconButton(
+                  tooltip: obscureText ? 'Show password' : 'Hide password',
+                  onPressed: enabled
+                      ? () => onVisibilityChanged(!obscureText)
+                      : null,
+                  icon: Icon(
+                    obscureText
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
                 ),
               ),
             ),

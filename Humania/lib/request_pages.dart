@@ -345,10 +345,12 @@ class _RequestHelpPageState extends State<_RequestHelpPage> {
                   subtitle: Text(
                     '${entry.value['quantityNeeded']} ${entry.value['unit']}',
                   ),
-                  trailing: IconButton(
-                    onPressed: () =>
-                        setState(() => _neededItems.removeAt(entry.key)),
-                    icon: const Icon(Icons.close),
+                  trailing: KindLinkPressScale(
+                    child: IconButton(
+                      onPressed: () =>
+                          setState(() => _neededItems.removeAt(entry.key)),
+                      icon: const Icon(Icons.close),
+                    ),
                   ),
                 ),
               ),

@@ -102,6 +102,37 @@ class KindLinkLogo extends StatelessWidget {
   }
 }
 
+class KindLinkPressScale extends StatefulWidget {
+  const KindLinkPressScale({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<KindLinkPressScale> createState() => _KindLinkPressScaleState();
+}
+
+class _KindLinkPressScaleState extends State<KindLinkPressScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => _setPressed(true),
+    onPointerUp: (_) => _setPressed(false),
+    onPointerCancel: (_) => _setPressed(false),
+    child: AnimatedScale(
+      scale: _pressed ? 0.88 : 1,
+      duration: Duration(milliseconds: _pressed ? 90 : 170),
+      curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
+      child: widget.child,
+    ),
+  );
+}
+
 bool isDesignatedAdminEmail(String? email) =>
     email != null && designatedAdminEmails.contains(email.trim().toLowerCase());
 
@@ -157,7 +188,7 @@ class _MyAppState extends State<MyApp> {
           ),
           child: child!,
         );
-      },  
+      },
       theme: ThemeData(
         colorScheme:
             ColorScheme.fromSeed(
@@ -184,6 +215,20 @@ class _MyAppState extends State<MyApp> {
           centerTitle: false,
           foregroundColor: kindLinkNavy,
         ),
+        iconTheme: const IconThemeData(color: kindLinkNavy, size: 22),
+        iconButtonTheme: IconButtonThemeData(
+          style:
+              IconButton.styleFrom(
+                foregroundColor: kindLinkNavy,
+                minimumSize: const Size.square(44),
+                shape: const CircleBorder(),
+              ).copyWith(
+                overlayColor: WidgetStatePropertyAll(
+                  kindLinkEmerald.withValues(alpha: 0.12),
+                ),
+                animationDuration: const Duration(milliseconds: 180),
+              ),
+        ),
         cardTheme: CardThemeData(
           color: Colors.white,
           surfaceTintColor: Colors.transparent,
@@ -194,12 +239,92 @@ class _MyAppState extends State<MyApp> {
           ),
         ),
         filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: kindLinkEmerald,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+          style:
+              FilledButton.styleFrom(
+                backgroundColor: kindLinkEmerald,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: kindLinkEmerald.withValues(
+                  alpha: 0.28,
+                ),
+                disabledForegroundColor: Colors.white70,
+                minimumSize: const Size(64, 52),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 14,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.15,
+                ),
+                elevation: 2,
+                shadowColor: kindLinkEmerald.withValues(alpha: 0.34),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ).copyWith(
+                overlayColor: WidgetStatePropertyAll(
+                  Colors.white.withValues(alpha: 0.14),
+                ),
+                elevation: WidgetStateProperty.resolveWith(
+                  (states) => states.contains(WidgetState.pressed) ? 0 : 2,
+                ),
+                animationDuration: const Duration(milliseconds: 180),
+              ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style:
+              OutlinedButton.styleFrom(
+                foregroundColor: kindLinkPrimaryDark,
+                minimumSize: const Size(64, 52),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 14,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+                side: BorderSide(
+                  color: kindLinkEmerald.withValues(alpha: 0.45),
+                  width: 1.4,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ).copyWith(
+                overlayColor: WidgetStatePropertyAll(
+                  kindLinkEmerald.withValues(alpha: 0.10),
+                ),
+                animationDuration: const Duration(milliseconds: 180),
+              ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style:
+              TextButton.styleFrom(
+                foregroundColor: kindLinkPrimaryDark,
+                minimumSize: const Size(48, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ).copyWith(
+                overlayColor: WidgetStatePropertyAll(
+                  kindLinkEmerald.withValues(alpha: 0.10),
+                ),
+                animationDuration: const Duration(milliseconds: 180),
+              ),
+        ),
+        floatingActionButtonTheme: FloatingActionButtonThemeData(
+          backgroundColor: kindLinkOrange,
+          foregroundColor: Colors.white,
+          elevation: 5,
+          focusElevation: 7,
+          hoverElevation: 7,
+          highlightElevation: 1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
         ),
         chipTheme: ChipThemeData(

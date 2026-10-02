@@ -11,6 +11,38 @@ List<String> _donationConditionOptions(String? preferred) => <String>{
   ..._standardDonationConditions,
 }.toList();
 
+int _campaignQuantity(Map<String, dynamic> item, String field) =>
+    max(0, (item[field] as num? ?? 0).toInt());
+
+int _campaignRemaining(Map<String, dynamic> item) {
+  final needed = _campaignQuantity(item, 'quantityNeeded');
+  final received = _campaignQuantity(item, 'quantityReceived');
+  final pledged = _campaignQuantity(item, 'quantityPledged');
+  final stored = item['quantityRemaining'] as num?;
+
+  // Older records can contain a missing or incorrectly initialized zero.
+  // Derive the value when no donation activity has happened yet.
+  if (stored == null ||
+      (stored.toInt() == 0 && received == 0 && pledged == 0 && needed > 0)) {
+    return max(0, needed - received - pledged);
+  }
+  return stored.toInt().clamp(0, needed);
+}
+
+String _organizationDonationGuidance(
+  String status,
+  String? handoverMethod,
+) => switch (status) {
+  'Pending' => 'Review the pledged items, then approve or reject the donation.',
+  'Approved' when handoverMethod == null =>
+    'Approved. Waiting for the donor to choose drop-off or pickup.',
+  'Approved' =>
+    'Handover: $handoverMethod. Confirm quantities only after they arrive.',
+  'Received' => 'Completed. The confirmed quantities now count as received.',
+  'Rejected' => 'Declined. The pledged quantities are available again.',
+  _ => 'Review this donation request.',
+};
+
 class _CampaignHubPage extends StatelessWidget {
   const _CampaignHubPage({required this.role, required this.user});
   final String role;
@@ -57,15 +89,17 @@ class _AdminOrganizationVerificationPage extends StatelessWidget {
     appBar: AppBar(
       title: const Text('Organization verification'),
       actions: [
-        IconButton(
-          tooltip: 'Verify help requests',
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const _HelpRequestModerationPage(),
+        KindLinkPressScale(
+          child: IconButton(
+            tooltip: 'Verify help requests',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const _HelpRequestModerationPage(),
+              ),
             ),
+            icon: const Icon(Icons.fact_check_outlined),
           ),
-          icon: const Icon(Icons.fact_check_outlined),
         ),
       ],
     ),
@@ -153,35 +187,49 @@ class _OrganizationCampaignsPage extends StatelessWidget {
     final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Campaign management'),
+        titleSpacing: 20,
+        title: const Text(
+          'Campaign management',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
         actions: [
-          IconButton(
-            tooltip: 'Donation requests',
-            onPressed: uid == null
-                ? null
-                : () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          _OrganizationOffersPage(organizationId: uid),
+          KindLinkPressScale(
+            child: IconButton(
+              tooltip: 'Donation requests',
+              onPressed: uid == null
+                  ? null
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            _OrganizationOffersPage(organizationId: uid),
+                      ),
                     ),
-                  ),
-            icon: const Icon(Icons.inbox_outlined),
+              icon: const Icon(Icons.inbox_outlined),
+            ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: uid == null
-            ? null
-            : () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      _CreateCampaignPage(user: user, organizationId: uid),
+      floatingActionButton: KindLinkPressScale(
+        child: FloatingActionButton(
+          tooltip: 'Create campaign',
+          onPressed: uid == null
+              ? null
+              : () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        _CreateCampaignPage(user: user, organizationId: uid),
+                  ),
                 ),
-              ),
-        icon: const Icon(Icons.add),
-        label: const Text('Create campaign'),
+          backgroundColor: kindLinkOrange,
+          foregroundColor: Colors.white,
+          elevation: 5,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.add_rounded, size: 32),
+        ),
       ),
       body: uid == null
           ? const Center(child: Text('Sign in to manage campaigns.'))
@@ -197,7 +245,34 @@ class _OrganizationCampaignsPage extends StatelessWidget {
                 final docs = snapshot.data!.docs;
                 if (docs.isEmpty) {
                   return const Center(
-                    child: Text('Create your first item donation campaign.'),
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.campaign_outlined,
+                            size: 42,
+                            color: kindLinkEmerald,
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            'Create your first item donation campaign.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Tap the orange plus button to get started.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: kindLinkSecondaryText),
+                          ),
+                        ],
+                      ),
+                    ),
                   );
                 }
                 return ListView.builder(
@@ -218,17 +293,78 @@ class _DonorCampaignsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Needed items'),
+      title: const Text(
+        'Campaign management',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+      ),
       actions: [
-        IconButton(
-          tooltip: 'My pledges',
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const _DonorPledgesPage()),
+        KindLinkPressScale(
+          child: IconButton.filledTonal(
+            tooltip: 'Organization donation requests',
+            onPressed: () {
+              final organizationId =
+                  firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+              if (organizationId == null) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      _OrganizationOffersPage(organizationId: organizationId),
+                ),
+              );
+            },
+            style: IconButton.styleFrom(
+              backgroundColor: kindLinkOrange.withValues(alpha: 0.16),
+              foregroundColor: const Color(0xffa95f00),
+              minimumSize: const Size.square(42),
+            ),
+            icon: const Icon(Icons.inbox_rounded),
           ),
-          icon: const Icon(Icons.handshake_outlined),
         ),
+        const SizedBox(width: 6),
+        KindLinkPressScale(
+          child: IconButton.filledTonal(
+            tooltip: 'My donation pledges',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const _DonorPledgesPage()),
+            ),
+            style: IconButton.styleFrom(
+              backgroundColor: kindLinkEmerald.withValues(alpha: 0.14),
+              foregroundColor: kindLinkPrimaryDark,
+              minimumSize: const Size.square(42),
+            ),
+            icon: const Icon(Icons.volunteer_activism_rounded),
+          ),
+        ),
+        const SizedBox(width: 12),
       ],
+    ),
+    floatingActionButton: KindLinkPressScale(
+      child: FloatingActionButton(
+        tooltip: 'Create campaign',
+        onPressed: () {
+          final organizationId =
+              firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+          if (organizationId == null) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => _CreateCampaignPage(
+                user: user,
+                organizationId: organizationId,
+              ),
+            ),
+          );
+        },
+        backgroundColor: kindLinkOrange,
+        foregroundColor: Colors.white,
+        elevation: 5,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add_rounded, size: 32),
+      ),
     ),
     body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -239,7 +375,14 @@ class _DonorCampaignsPage extends StatelessWidget {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snapshot.data!.docs;
+        final docs = [...snapshot.data!.docs]
+          ..sort((a, b) {
+            final aTime = a.data()['createdAt'] as Timestamp?;
+            final bTime = b.data()['createdAt'] as Timestamp?;
+            return (bTime?.millisecondsSinceEpoch ?? 0).compareTo(
+              aTime?.millisecondsSinceEpoch ?? 0,
+            );
+          });
         if (docs.isEmpty) {
           return const Center(child: Text('No active campaigns right now.'));
         }
@@ -359,18 +502,8 @@ class _CampaignCard extends StatelessWidget {
     final data = document.data();
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: const CircleAvatar(child: Icon(Icons.inventory_2_outlined)),
-        title: Text(
-          data['title'] as String? ?? 'Donation campaign',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          '${data['organizationName'] ?? 'Organization'}\n${data['description'] ?? ''}',
-        ),
-        isThreeLine: true,
-        trailing: const Icon(Icons.chevron_right),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -380,6 +513,74 @@ class _CampaignCard extends StatelessWidget {
               organization: organization,
               user: user,
             ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: kindLinkEmerald.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.inventory_2_outlined,
+                      color: kindLinkPrimaryDark,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      data['title'] as String? ?? 'Donation campaign',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.left,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        height: 1.2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 17,
+                    color: kindLinkSecondaryText,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 13),
+              Text(
+                data['organizationName'] as String? ?? 'Organization',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.left,
+                style: const TextStyle(
+                  color: kindLinkEmerald,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if ((data['description'] as String? ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 5),
+                Text(
+                  data['description'] as String,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.left,
+                  style: const TextStyle(
+                    color: kindLinkSecondaryText,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -591,6 +792,7 @@ class _CreateCampaignPageState extends State<_CreateCampaignPage> {
           ...item,
           'campaignId': campaign.id,
           'quantityReceived': 0,
+          'quantityPledged': 0,
           'quantityRemaining': item['quantityNeeded'],
         });
       }
@@ -795,10 +997,12 @@ class _CampaignItemsPage extends StatelessWidget {
       title: Text(campaign['title'] ?? 'Campaign'),
       actions: [
         if (organization)
-          IconButton(
-            tooltip: 'Post distribution report',
-            onPressed: () => _postDistributionReport(context),
-            icon: const Icon(Icons.post_add_outlined),
+          KindLinkPressScale(
+            child: IconButton(
+              tooltip: 'Post distribution report',
+              onPressed: () => _postDistributionReport(context),
+              icon: const Icon(Icons.post_add_outlined),
+            ),
           ),
       ],
     ),
@@ -807,23 +1011,29 @@ class _CampaignItemsPage extends StatelessWidget {
         : SafeArea(
             top: false,
             child: Container(
+              height: 74,
               color: kindLinkCream,
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-              child: FilledButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => _MultiItemOfferPage(
-                      campaignId: campaignId,
-                      campaign: campaign,
-                      user: user!,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => _MultiItemOfferPage(
+                        campaignId: campaignId,
+                        campaign: campaign,
+                        user: user!,
+                      ),
                     ),
                   ),
-                ),
-                icon: const Icon(Icons.playlist_add_check),
-                label: const Text('Donate multiple'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(58),
+                  icon: const Icon(Icons.playlist_add_check, size: 19),
+                  label: const Text('Donate multiple'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    shape: const StadiumBorder(),
+                  ),
                 ),
               ),
             ),
@@ -844,7 +1054,17 @@ class _CampaignItemsPage extends StatelessWidget {
         );
         final totalReceived = itemDocs.fold<num>(
           0,
-          (total, doc) => total + (doc.data()['quantityReceived'] as num? ?? 0),
+          (total, doc) =>
+              total + _campaignQuantity(doc.data(), 'quantityReceived'),
+        );
+        final totalPledged = itemDocs.fold<num>(
+          0,
+          (total, doc) =>
+              total + _campaignQuantity(doc.data(), 'quantityPledged'),
+        );
+        final totalRemaining = itemDocs.fold<num>(
+          0,
+          (total, doc) => total + _campaignRemaining(doc.data()),
         );
         final deadline = campaign['deadline'] is Timestamp
             ? (campaign['deadline'] as Timestamp).toDate()
@@ -886,6 +1106,11 @@ class _CampaignItemsPage extends StatelessWidget {
                       '${totalReceived.toInt()} of ${totalNeeded.toInt()} items received',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${totalPledged.toInt()} pledged • ${totalRemaining.toInt()} still needed',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                     const SizedBox(height: 6),
                     LinearProgressIndicator(
                       value: totalNeeded == 0
@@ -899,8 +1124,9 @@ class _CampaignItemsPage extends StatelessWidget {
             ...itemDocs.map((doc) {
               final item = doc.data();
               final needed = item['quantityNeeded'] as num? ?? 0;
-              final received = item['quantityReceived'] as num? ?? 0;
-              final remaining = item['quantityRemaining'] as num? ?? 0;
+              final received = _campaignQuantity(item, 'quantityReceived');
+              final pledged = _campaignQuantity(item, 'quantityPledged');
+              final remaining = _campaignRemaining(item);
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
@@ -916,7 +1142,9 @@ class _CampaignItemsPage extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${item['preferredCondition'] ?? ''}\n${received.toInt()} / ${needed.toInt()} received • ${remaining.toInt()} remaining',
+                        '${item['preferredCondition'] ?? ''}\n'
+                        '$received / ${needed.toInt()} received • '
+                        '$pledged pledged • $remaining still needed',
                       ),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
@@ -924,12 +1152,34 @@ class _CampaignItemsPage extends StatelessWidget {
                             ? 0
                             : (received / needed).clamp(0, 1),
                       ),
-                      if (!organization && remaining > 0)
+                      const SizedBox(height: 10),
+                      if (!organization)
                         Align(
                           alignment: Alignment.centerRight,
                           child: FilledButton(
-                            onPressed: () => _offer(context, doc.id, item),
-                            child: const Text('Donate this item'),
+                            onPressed: remaining > 0
+                                ? () => _offer(context, doc.id, item)
+                                : null,
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 40),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 10,
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              shape: const StadiumBorder(),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            child: Text(
+                              remaining > 0
+                                  ? 'Donate item'
+                                  : received >= needed
+                                  ? 'Goal reached'
+                                  : 'Fully pledged',
+                            ),
                           ),
                         ),
                     ],
@@ -1015,20 +1265,22 @@ class _CampaignItemsPage extends StatelessWidget {
       await firestore.runTransaction((tx) async {
         final snapshot = await tx.get(campaignItem);
         final current = snapshot.data();
-        final remaining = (current?['quantityRemaining'] as num?)?.toInt() ?? 0;
+        if (current == null) throw Exception('This campaign item was removed.');
+        final remaining = _campaignRemaining(current);
         if (offered > remaining) {
           throw Exception('Only $remaining item(s) are still needed.');
         }
         tx.update(campaignItem, {
           'quantityRemaining': remaining - offered,
           'quantityPledged':
-              (current?['quantityPledged'] as num? ?? 0).toInt() + offered,
+              _campaignQuantity(current, 'quantityPledged') + offered,
         });
         tx.set(donation, {
           'donorId': uid,
           'donorName': user?.name,
           'organizationId': campaign['organizationId'],
           'campaignId': campaignId,
+          'campaignTitle': campaign['title'],
           'itemCount': 1,
           'status': 'Pending',
           'message': message.text.trim(),
@@ -1065,7 +1317,11 @@ class _CampaignItemsPage extends StatelessWidget {
     }
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Donation request submitted.')),
+        const SnackBar(
+          content: Text(
+            'Pledge submitted. The organization will review it before handover.',
+          ),
+        ),
       );
     }
   }
@@ -1183,7 +1439,7 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
         for (final item in selected) {
           final current = snapshots[item.id]!.data()!;
           final offered = _quantities[item.id]!;
-          final remaining = (current['quantityRemaining'] as num? ?? 0).toInt();
+          final remaining = _campaignRemaining(current);
           if (offered > remaining) {
             throw Exception(
               '${current['itemName']} only has $remaining remaining.',
@@ -1215,11 +1471,11 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
         for (final item in selected) {
           final data = snapshots[item.id]!.data()!;
           final offered = _quantities[item.id]!;
-          final remaining = (data['quantityRemaining'] as num).toInt();
+          final remaining = _campaignRemaining(data);
           tx.update(item.reference, {
             'quantityRemaining': remaining - offered,
             'quantityPledged':
-                (data['quantityPledged'] as num? ?? 0).toInt() + offered,
+                _campaignQuantity(data, 'quantityPledged') + offered,
           });
           tx.set(firestore.collection('donationItems').doc(), {
             'donationId': donation.id,
@@ -1267,8 +1523,11 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
           return const Center(child: CircularProgressIndicator());
         }
         final items = snapshot.data!.docs
-            .where((doc) => (doc.data()['quantityRemaining'] as num? ?? 0) > 0)
+            .where((doc) => _campaignRemaining(doc.data()) > 0)
             .toList();
+        final selectedCount = items
+            .where((doc) => (_quantities[doc.id] ?? 0) > 0)
+            .length;
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 110),
           children: [
@@ -1282,8 +1541,31 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
               'Choose one or more needed items and enter how many you can give.',
             ),
             const SizedBox(height: 18),
+            if (items.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Column(
+                    children: [
+                      Icon(Icons.check_circle_outline, color: kindLinkEmerald),
+                      SizedBox(height: 8),
+                      Text(
+                        'All items are currently received or pledged.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Items become available again if a pledge is declined or fewer items are received.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ...items.map((doc) {
               final item = doc.data();
+              final remaining = _campaignRemaining(item);
               final selected = (_quantities[doc.id] ?? 0) > 0;
               final selectedCondition =
                   _conditions[doc.id] ??
@@ -1302,9 +1584,7 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
                           item['itemName'] ?? 'Item',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: Text(
-                          '${item['quantityRemaining']} remaining',
-                        ),
+                        subtitle: Text('$remaining still needed'),
                         onChanged: (value) => setState(
                           () => value == true
                               ? _quantities[doc.id] = 1
@@ -1319,8 +1599,18 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
                             labelText: 'Quantity offered',
                             prefixIcon: Icon(Icons.numbers),
                           ),
-                          onChanged: (value) =>
-                              _quantities[doc.id] = int.tryParse(value) ?? 0,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onChanged: (value) {
+                            final quantity = int.tryParse(value) ?? 0;
+                            setState(() {
+                              _quantities[doc.id] = quantity.clamp(
+                                0,
+                                remaining,
+                              );
+                            });
+                          },
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
@@ -1354,10 +1644,16 @@ class _MultiItemOfferPageState extends State<_MultiItemOfferPage> {
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
-              onPressed: _saving ? null : () => _submit(items),
+              onPressed: _saving || selectedCount == 0
+                  ? null
+                  : () => _submit(items),
               icon: const Icon(Icons.send_outlined),
               label: Text(
-                _saving ? 'Submitting...' : 'Submit donation request',
+                _saving
+                    ? 'Submitting...'
+                    : selectedCount == 0
+                    ? 'Select items to donate'
+                    : 'Submit $selectedCount item type${selectedCount == 1 ? '' : 's'}',
               ),
             ),
           ],
@@ -1382,40 +1678,40 @@ class _OrganizationOffersPage extends StatelessWidget {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snapshot.data!.docs;
+        final docs =
+            snapshot.data!.docs.where((doc) {
+              final status = doc.data()['status'] as String? ?? 'Pending';
+              return status == 'Pending' || status == 'Approved';
+            }).toList()..sort((a, b) {
+              final aTime = a.data()['createdAt'] as Timestamp?;
+              final bTime = b.data()['createdAt'] as Timestamp?;
+              return (bTime?.millisecondsSinceEpoch ?? 0).compareTo(
+                aTime?.millisecondsSinceEpoch ?? 0,
+              );
+            });
         if (docs.isEmpty) {
-          return const Center(child: Text('No donation requests.'));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'No active donation requests. Completed and declined donations are removed from this queue.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
         }
         return ListView(
           padding: const EdgeInsets.all(20),
           children: docs.map((doc) {
-            final d = doc.data();
-            return Card(
-              child: ListTile(
-                title: Text(d['donorName'] ?? 'Donor'),
-                subtitle: Text(
-                  '${d['itemCount'] ?? 1} item(s) • ${d['status']}\n${d['message'] ?? ''}',
-                ),
-                isThreeLine: true,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => _OrganizationOfferDetailsPage(
-                      donation: doc,
-                      onStatus: (status) => _changeStatus(context, doc, status),
-                    ),
+            return _OrganizationDonationCard(
+              donation: doc,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _OrganizationOfferDetailsPage(
+                    donation: doc,
+                    onStatus: (status) => _changeStatus(context, doc, status),
                   ),
-                ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (status) => _changeStatus(context, doc, status),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'Approved', child: Text('Approve')),
-                    PopupMenuItem(value: 'Rejected', child: Text('Reject')),
-                    PopupMenuItem(
-                      value: 'Received',
-                      child: Text('Confirm received'),
-                    ),
-                  ],
                 ),
               ),
             );
@@ -1430,98 +1726,358 @@ class _OrganizationOffersPage extends StatelessWidget {
     QueryDocumentSnapshot<Map<String, dynamic>> donation,
     String status,
   ) async {
-    if (status == 'Rejected') {
-      final rejectedItems = await FirebaseFirestore.instance
-          .collection('donationItems')
-          .where('donationId', isEqualTo: donation.id)
-          .get();
-      for (final item in rejectedItems.docs) {
-        final data = item.data();
-        final offered = (data['quantityOffered'] as num).toInt();
-        final campaignItem = FirebaseFirestore.instance
-            .collection('campaignItems')
-            .doc(data['campaignItemId']);
-        await FirebaseFirestore.instance.runTransaction((tx) async {
-          final snapshot = await tx.get(campaignItem);
-          final current = snapshot.data();
-          if (current == null) return;
-          tx.update(campaignItem, {
-            'quantityRemaining':
-                (current['quantityRemaining'] as num? ?? 0).toInt() + offered,
-            'quantityPledged': max(
-              0,
-              (current['quantityPledged'] as num? ?? 0).toInt() - offered,
+    final currentStatus = donation.data()['status'] as String? ?? 'Pending';
+    final validTransition = switch ((currentStatus, status)) {
+      ('Pending', 'Approved') ||
+      ('Pending', 'Rejected') ||
+      ('Approved', 'Rejected') ||
+      ('Approved', 'Received') => true,
+      _ => false,
+    };
+    if (!validTransition) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'This donation cannot move from $currentStatus to $status.',
             ),
-          });
-        });
+          ),
+        );
       }
-    }
-    if (status != 'Received') {
-      await donation.reference.update({
-        'status': status,
-        '${status.toLowerCase()}At': FieldValue.serverTimestamp(),
-      });
       return;
     }
-    final items = await FirebaseFirestore.instance
+
+    final firestore = FirebaseFirestore.instance;
+    final items = await firestore
         .collection('donationItems')
         .where('donationId', isEqualTo: donation.id)
         .get();
-    for (final donationItem in items.docs) {
-      final data = donationItem.data();
-      final offered = (data['quantityOffered'] as num).toInt();
-      final controller = TextEditingController(text: '$offered');
-      if (!context.mounted) return;
-      final confirmed = await showDialog<int>(
-        context: context,
-        builder: (context) => AlertDialog(
-          scrollable: true,
-          title: Text('Actually received: ${data['itemName']}'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(helperText: 'Offered: $offered'),
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () =>
-                  Navigator.pop(context, int.tryParse(controller.text)),
-              child: const Text('Confirm'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed == null || confirmed < 0) return;
-      final firestore = FirebaseFirestore.instance;
-      final campaignItem = firestore
-          .collection('campaignItems')
-          .doc(data['campaignItemId']);
+
+    if (status == 'Rejected') {
       await firestore.runTransaction((tx) async {
-        final snap = await tx.get(campaignItem);
-        final current = snap.data();
-        if (current == null) return;
-        final received =
-            (current['quantityReceived'] as num? ?? 0).toInt() + confirmed;
-        tx.update(campaignItem, {
-          'quantityReceived': received,
-          'quantityRemaining': max(
-            0,
-            (current['quantityRemaining'] as num? ?? 0).toInt() +
-                offered -
-                confirmed,
-          ),
-          'quantityPledged': max(
-            0,
-            (current['quantityPledged'] as num? ?? 0).toInt() - offered,
-          ),
+        final latestDonation = await tx.get(donation.reference);
+        final latestStatus = latestDonation.data()?['status'] as String?;
+        if (latestStatus != 'Pending' && latestStatus != 'Approved') {
+          throw Exception('This donation was already updated.');
+        }
+        final campaignSnapshots =
+            <String, DocumentSnapshot<Map<String, dynamic>>>{};
+        for (final item in items.docs) {
+          final campaignItem = firestore
+              .collection('campaignItems')
+              .doc(item.data()['campaignItemId'] as String);
+          campaignSnapshots[item.id] = await tx.get(campaignItem);
+        }
+        for (final item in items.docs) {
+          final data = item.data();
+          final offered = _campaignQuantity(data, 'quantityOffered');
+          final snapshot = campaignSnapshots[item.id]!;
+          final current = snapshot.data();
+          if (current == null) continue;
+          final needed = _campaignQuantity(current, 'quantityNeeded');
+          final received = _campaignQuantity(current, 'quantityReceived');
+          tx.update(snapshot.reference, {
+            'quantityRemaining': min(
+              max(0, needed - received),
+              _campaignRemaining(current) + offered,
+            ),
+            'quantityPledged': max(
+              0,
+              _campaignQuantity(current, 'quantityPledged') - offered,
+            ),
+          });
+        }
+        tx.update(donation.reference, {
+          'status': 'Rejected',
+          'rejectedAt': FieldValue.serverTimestamp(),
         });
-        tx.update(donationItem.reference, {'quantityReceived': confirmed});
+      });
+    } else if (status == 'Approved') {
+      await donation.reference.update({
+        'status': 'Approved',
+        'approvedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      final confirmedQuantities = <String, int>{};
+      for (final donationItem in items.docs) {
+        final data = donationItem.data();
+        final offered = _campaignQuantity(data, 'quantityOffered');
+        final controller = TextEditingController(text: '$offered');
+        if (!context.mounted) return;
+        final confirmed = await showDialog<int>(
+          context: context,
+          builder: (context) => AlertDialog(
+            scrollable: true,
+            title: Text('Actually received: ${data['itemName']}'),
+            content: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(helperText: 'Offered: $offered'),
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () =>
+                    Navigator.pop(context, int.tryParse(controller.text)),
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
+        controller.dispose();
+        if (confirmed == null) return;
+        if (confirmed < 0 || confirmed > offered) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Enter a quantity from 0 to $offered.')),
+            );
+          }
+          return;
+        }
+        confirmedQuantities[donationItem.id] = confirmed;
+      }
+
+      await firestore.runTransaction((tx) async {
+        final latestDonation = await tx.get(donation.reference);
+        if (latestDonation.data()?['status'] != 'Approved') {
+          throw Exception('This donation is no longer awaiting receipt.');
+        }
+        final campaignSnapshots =
+            <String, DocumentSnapshot<Map<String, dynamic>>>{};
+        for (final item in items.docs) {
+          final campaignItem = firestore
+              .collection('campaignItems')
+              .doc(item.data()['campaignItemId'] as String);
+          campaignSnapshots[item.id] = await tx.get(campaignItem);
+        }
+        for (final item in items.docs) {
+          final data = item.data();
+          final offered = _campaignQuantity(data, 'quantityOffered');
+          final confirmed = confirmedQuantities[item.id]!;
+          final snapshot = campaignSnapshots[item.id]!;
+          final current = snapshot.data();
+          if (current == null) continue;
+          tx.update(snapshot.reference, {
+            'quantityReceived':
+                _campaignQuantity(current, 'quantityReceived') + confirmed,
+            'quantityRemaining': max(
+              0,
+              _campaignRemaining(current) + offered - confirmed,
+            ),
+            'quantityPledged': max(
+              0,
+              _campaignQuantity(current, 'quantityPledged') - offered,
+            ),
+          });
+          tx.update(item.reference, {'quantityReceived': confirmed});
+        }
+        tx.update(donation.reference, {
+          'status': 'Received',
+          'receivedAt': FieldValue.serverTimestamp(),
+        });
       });
     }
-    await donation.reference.update({
-      'status': 'Received',
-      'receivedAt': FieldValue.serverTimestamp(),
-    });
+
+    final donorId = donation.data()['donorId'] as String?;
+    if (donorId != null) {
+      try {
+        await firestore.collection('notifications').add({
+          'recipientId': donorId,
+          'type': 'campaignDonationStatus',
+          'campaignId': donation.data()['campaignId'],
+          'donationId': donation.id,
+          'title': 'Donation $status',
+          'message': status == 'Approved'
+              ? 'Your pledge was approved. Choose drop-off or pickup next.'
+              : status == 'Received'
+              ? 'The organization confirmed your donated items.'
+              : 'The organization declined your pledge. The items are needed again.',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } on FirebaseException {
+        // The quantity/status update is authoritative even if notification
+        // delivery is temporarily unavailable.
+      }
+    }
+  }
+}
+
+class _OrganizationDonationCard extends StatelessWidget {
+  const _OrganizationDonationCard({
+    required this.donation,
+    required this.onTap,
+  });
+
+  final QueryDocumentSnapshot<Map<String, dynamic>> donation;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = donation.data();
+    final donorName = data['donorName'] as String? ?? 'Community donor';
+    final status = data['status'] as String? ?? 'Pending';
+    final approved = status == 'Approved';
+    final statusColor = approved ? kindLinkSuccess : kindLinkOrange;
+    final message = (data['message'] as String? ?? '').trim();
+    final campaignTitle = (data['campaignTitle'] as String? ?? '').trim();
+    final createdAt = data['createdAt'] as Timestamp?;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: statusColor.withValues(alpha: 0.18)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 23,
+                    backgroundColor: kindLinkEmerald.withValues(alpha: 0.12),
+                    child: Text(
+                      donorName.isEmpty ? '?' : donorName[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: kindLinkPrimaryDark,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          donorName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '${data['itemCount'] ?? 1} item type${data['itemCount'] == 1 ? '' : 's'}'
+                          '${createdAt == null ? '' : ' • ${formatPostedDate(createdAt.toDate())}'}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.13),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          approved
+                              ? Icons.check_circle_outline
+                              : Icons.schedule_rounded,
+                          size: 15,
+                          color: statusColor,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          status,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (campaignTitle.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.campaign_outlined,
+                      size: 18,
+                      color: kindLinkEmerald,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        campaignTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                _organizationDonationGuidance(
+                  status,
+                  data['handoverMethod'] as String?,
+                ),
+                style: const TextStyle(color: kindLinkSecondaryText),
+              ),
+              if (message.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: kindLinkCream,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '“$message”',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: kindLinkSecondaryText,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'View details',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1572,6 +2128,28 @@ class _OrganizationOfferDetailsPage extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text('Message: ${data['message']}'),
                 ),
+              const SizedBox(height: 12),
+              Card(
+                color: kindLinkEmerald.withValues(alpha: 0.08),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.route_outlined, color: kindLinkEmerald),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _organizationDonationGuidance(
+                            data['status'] as String? ?? 'Pending',
+                            data['handoverMethod'] as String?,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 18),
               const Text(
                 'Items offered',
@@ -1580,6 +2158,8 @@ class _OrganizationOfferDetailsPage extends StatelessWidget {
               const SizedBox(height: 8),
               ...snapshot.data!.docs.map((item) {
                 final value = item.data();
+                final offered = _campaignQuantity(value, 'quantityOffered');
+                final received = _campaignQuantity(value, 'quantityReceived');
                 return Card(
                   child: ListTile(
                     leading: const CircleAvatar(
@@ -1587,7 +2167,9 @@ class _OrganizationOfferDetailsPage extends StatelessWidget {
                     ),
                     title: Text(value['itemName'] ?? 'Item'),
                     subtitle: Text(
-                      'Offered: ${value['quantityOffered']}\nCondition: ${value['condition']}',
+                      'Pledged: $offered\n'
+                      'Confirmed received: $received\n'
+                      'Condition: ${value['condition']}',
                     ),
                     isThreeLine: true,
                   ),
@@ -1624,19 +2206,22 @@ class _OrganizationOfferDetailsPage extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.all(14),
                     child: Text(
-                      'Waiting for the donor to choose drop-off or pickup.',
+                      'The donor has not selected drop-off or pickup yet. If the items were handed over directly, you can still confirm them below.',
                     ),
                   ),
                 ),
-              if (data['status'] == 'Approved' &&
-                  data['handoverMethod'] != null)
+              if (data['status'] == 'Approved')
                 FilledButton.icon(
                   onPressed: () async {
                     await onStatus('Received');
                     if (context.mounted) Navigator.pop(context);
                   },
                   icon: const Icon(Icons.inventory),
-                  label: const Text('Confirm received items'),
+                  label: Text(
+                    data['handoverMethod'] == null
+                        ? 'Confirm direct receipt'
+                        : 'Confirm received items',
+                  ),
                 ),
             ],
           );

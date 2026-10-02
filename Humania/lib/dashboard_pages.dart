@@ -538,19 +538,29 @@ class _DashboardPageState extends State<DashboardPage>
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: SafeArea(
         top: false,
-        child: BottomAppBar(
-          height: 64,
-          padding: EdgeInsets.zero,
-          color: Colors.white,
-          surfaceTintColor: Colors.white,
-          elevation: 12,
-          child: SizedBox(
-            height: 64,
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: Container(
+          height: 70,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: kindLinkEmerald.withValues(alpha: 0.10)),
+            boxShadow: [
+              BoxShadow(
+                color: kindLinkNavy.withValues(alpha: 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
             child: Row(
               children: [
                 Expanded(
                   child: _BottomBarItem(
                     icon: Icons.home_outlined,
+                    selectedIcon: Icons.home_rounded,
                     label: 'Home',
                     selected: _selectedIndex == 0,
                     onTap: () => setState(() => _selectedIndex = 0),
@@ -559,6 +569,7 @@ class _DashboardPageState extends State<DashboardPage>
                 Expanded(
                   child: _BottomBarItem(
                     icon: Icons.map_outlined,
+                    selectedIcon: Icons.map_rounded,
                     label: 'Map',
                     selected: _selectedIndex == 1,
                     onTap: () => setState(() => _selectedIndex = 1),
@@ -567,6 +578,7 @@ class _DashboardPageState extends State<DashboardPage>
                 Expanded(
                   child: _BottomBarItem(
                     icon: Icons.front_hand_outlined,
+                    selectedIcon: Icons.front_hand_rounded,
                     label: 'Request',
                     selected: _selectedIndex == 3,
                     onTap: () => setState(() => _selectedIndex = 3),
@@ -575,6 +587,7 @@ class _DashboardPageState extends State<DashboardPage>
                 Expanded(
                   child: _BottomBarItem(
                     icon: Icons.apartment_outlined,
+                    selectedIcon: Icons.apartment_rounded,
                     label: 'Orgs',
                     selected: _selectedIndex == 4,
                     onTap: () => setState(() => _selectedIndex = 4),
@@ -583,6 +596,7 @@ class _DashboardPageState extends State<DashboardPage>
                 Expanded(
                   child: _BottomBarItem(
                     icon: Icons.person_outline,
+                    selectedIcon: Icons.person_rounded,
                     label: 'Profile',
                     selected: _selectedIndex == 5,
                     onTap: () => setState(() => _selectedIndex = 5),
@@ -600,46 +614,76 @@ class _DashboardPageState extends State<DashboardPage>
 class _BottomBarItem extends StatelessWidget {
   const _BottomBarItem({
     required this.icon,
+    required this.selectedIcon,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
   final IconData icon;
+  final IconData selectedIcon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? kindLinkEmerald : Colors.grey;
+    final color = selected ? kindLinkPrimaryDark : const Color(0xff7a858b);
     return Semantics(
       button: true,
       selected: selected,
       label: label == 'Orgs' ? 'Organizations' : label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 5),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textScaler: TextScaler.noScaling,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      child: KindLinkPressScale(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 5),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  width: selected ? 46 : 36,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? kindLinkEmerald.withValues(alpha: 0.16)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOutBack,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: animation, child: child),
+                    ),
+                    child: Icon(
+                      selected ? selectedIcon : icon,
+                      key: ValueKey(selected),
+                      color: color,
+                      size: selected ? 23 : 21,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textScaler: TextScaler.noScaling,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10.5,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -679,11 +723,8 @@ class _HomeTabState extends State<_HomeTab> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 104),
       children: [
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: KindLinkLogo(height: 82, width: 230),
-        ),
-        const SizedBox(height: 20),
+        const Center(child: KindLinkLogo(height: 68, width: 190)),
+        const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
@@ -1042,10 +1083,12 @@ class _MapTabState extends State<_MapTab> {
                   color: Colors.white,
                   shape: const CircleBorder(),
                   elevation: 3,
-                  child: IconButton(
-                    tooltip: 'Back to home',
-                    onPressed: widget.onBack,
-                    icon: const Icon(Icons.arrow_back),
+                  child: KindLinkPressScale(
+                    child: IconButton(
+                      tooltip: 'Back to home',
+                      onPressed: widget.onBack,
+                      icon: const Icon(Icons.arrow_back),
+                    ),
                   ),
                 ),
                 const Spacer(),
@@ -1556,22 +1599,26 @@ class _DonorDonationCard extends StatelessWidget {
               trailing: (request['status'] ?? 'pending') == 'pending'
                   ? Wrap(
                       children: [
-                        IconButton(
-                          tooltip: 'Approve',
-                          onPressed: () =>
-                              _setRequest(context, request, 'approved'),
-                          icon: const Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
+                        KindLinkPressScale(
+                          child: IconButton(
+                            tooltip: 'Approve',
+                            onPressed: () =>
+                                _setRequest(context, request, 'approved'),
+                            icon: const Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                            ),
                           ),
                         ),
-                        IconButton(
-                          tooltip: 'Reject',
-                          onPressed: () =>
-                              _setRequest(context, request, 'rejected'),
-                          icon: const Icon(
-                            Icons.cancel_outlined,
-                            color: Colors.red,
+                        KindLinkPressScale(
+                          child: IconButton(
+                            tooltip: 'Reject',
+                            onPressed: () =>
+                                _setRequest(context, request, 'rejected'),
+                            icon: const Icon(
+                              Icons.cancel_outlined,
+                              color: Colors.red,
+                            ),
                           ),
                         ),
                       ],
@@ -2116,17 +2163,21 @@ class _CreateDonationPageState extends State<_CreateDonationPage> {
                               top: 8,
                               child: Row(
                                 children: [
-                                  IconButton.filledTonal(
-                                    tooltip: 'Choose another photo',
-                                    onPressed: _pickImage,
-                                    icon: const Icon(Icons.edit_outlined),
+                                  KindLinkPressScale(
+                                    child: IconButton.filledTonal(
+                                      tooltip: 'Choose another photo',
+                                      onPressed: _pickImage,
+                                      icon: const Icon(Icons.edit_outlined),
+                                    ),
                                   ),
                                   const SizedBox(width: 6),
-                                  IconButton.filledTonal(
-                                    tooltip: 'Remove photo',
-                                    onPressed: () =>
-                                        setState(() => _imageBytes = null),
-                                    icon: const Icon(Icons.delete_outline),
+                                  KindLinkPressScale(
+                                    child: IconButton.filledTonal(
+                                      tooltip: 'Remove photo',
+                                      onPressed: () =>
+                                          setState(() => _imageBytes = null),
+                                      icon: const Icon(Icons.delete_outline),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -2168,16 +2219,18 @@ class _CreateDonationPageState extends State<_CreateDonationPage> {
               decoration: InputDecoration(
                 labelText: 'Pinned item location',
                 prefixIcon: const Icon(Icons.location_on_outlined),
-                suffixIcon: IconButton(
-                  onPressed: _pinningLocation ? null : _chooseLocation,
-                  icon: _pinningLocation
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.my_location),
-                  tooltip: 'Pin current location',
+                suffixIcon: KindLinkPressScale(
+                  child: IconButton(
+                    onPressed: _pinningLocation ? null : _chooseLocation,
+                    icon: _pinningLocation
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.my_location),
+                    tooltip: 'Pin current location',
+                  ),
                 ),
                 border: const OutlineInputBorder(),
               ),

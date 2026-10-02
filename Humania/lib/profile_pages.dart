@@ -429,15 +429,17 @@ class _RatingEditorState extends State<_RatingEditor> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
             5,
-            (index) => IconButton(
-              tooltip: '${index + 1} stars',
-              onPressed: _saving
-                  ? null
-                  : () => setState(() => _stars = index + 1),
-              icon: Icon(
-                index < _stars ? Icons.star : Icons.star_border,
-                color: Colors.amber,
-                size: 30,
+            (index) => KindLinkPressScale(
+              child: IconButton(
+                tooltip: '${index + 1} stars',
+                onPressed: _saving
+                    ? null
+                    : () => setState(() => _stars = index + 1),
+                icon: Icon(
+                  index < _stars ? Icons.star : Icons.star_border,
+                  color: Colors.amber,
+                  size: 30,
+                ),
               ),
             ),
           ),
@@ -1148,27 +1150,29 @@ class _OrganizationPageState extends State<_OrganizationPage> {
                                               ),
                                             ),
                                             if (_inviteCode != null)
-                                              IconButton(
-                                                tooltip: 'Copy invite code',
-                                                color: Colors.white,
-                                                onPressed: () {
-                                                  Clipboard.setData(
-                                                    ClipboardData(
-                                                      text: _inviteCode!,
-                                                    ),
-                                                  );
-                                                  ScaffoldMessenger.of(
-                                                    context,
-                                                  ).showSnackBar(
-                                                    const SnackBar(
-                                                      content: Text(
-                                                        'Invite code copied.',
+                                              KindLinkPressScale(
+                                                child: IconButton(
+                                                  tooltip: 'Copy invite code',
+                                                  color: Colors.white,
+                                                  onPressed: () {
+                                                    Clipboard.setData(
+                                                      ClipboardData(
+                                                        text: _inviteCode!,
                                                       ),
-                                                    ),
-                                                  );
-                                                },
-                                                icon: const Icon(
-                                                  Icons.copy_outlined,
+                                                    );
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text(
+                                                          'Invite code copied.',
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                  icon: const Icon(
+                                                    Icons.copy_outlined,
+                                                  ),
                                                 ),
                                               ),
                                           ],
