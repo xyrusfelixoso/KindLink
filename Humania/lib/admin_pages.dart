@@ -200,7 +200,7 @@ class _AdminShellState extends State<_AdminShell> {
     NavigationDestination(
       icon: Icon(Icons.dashboard_outlined),
       selectedIcon: Icon(Icons.dashboard),
-      label: 'Dashboard',
+      label: 'Home',
     ),
     NavigationDestination(
       icon: Icon(Icons.fact_check_outlined),
@@ -210,7 +210,7 @@ class _AdminShellState extends State<_AdminShell> {
     NavigationDestination(
       icon: Icon(Icons.apartment_outlined),
       selectedIcon: Icon(Icons.apartment),
-      label: 'Organizations',
+      label: 'Orgs',
     ),
     NavigationDestination(
       icon: Icon(Icons.volunteer_activism_outlined),
@@ -238,84 +238,123 @@ class _AdminShellState extends State<_AdminShell> {
         final wide = constraints.maxWidth >= 800;
         final body = Column(
           children: [
-            Container(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              color: Colors.white,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 72,
-                    height: 54,
-                    child: ClipRect(
-                      child: Transform.scale(
-                        scale: 3,
-                        alignment: const Alignment(0, -0.25),
-                        child: Image.asset(
-                          'assets/images/kindlink-admin-mark.png',
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.high,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Text(
-                    'Admin',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  Text(widget.admin.email ?? 'Administrator'),
-                  const SizedBox(width: 12),
-                  KindLinkPressScale(
-                    child: IconButton(
-                      tooltip: 'Sign out',
-                      onPressed: widget.onSignOut,
-                      icon: const Icon(Icons.logout),
-                    ),
-                  ),
-                ],
-              ),
+            _AdminHeader(
+              email: widget.admin.email ?? 'Administrator',
+              onSignOut: widget.onSignOut,
             ),
             Expanded(child: pages[_index]),
           ],
         );
         return Scaffold(
-          body: wide
-              ? Row(
-                  children: [
-                    NavigationRail(
-                      selectedIndex: _index,
-                      onDestinationSelected: (value) =>
-                          setState(() => _index = value),
-                      labelType: NavigationRailLabelType.all,
-                      destinations: _destinations
-                          .map(
-                            (item) => NavigationRailDestination(
-                              icon: item.icon,
-                              selectedIcon: item.selectedIcon,
-                              label: Text(item.label),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: body),
-                  ],
-                )
-              : body,
+          body: SafeArea(
+            bottom: false,
+            child: wide
+                ? Row(
+                    children: [
+                      NavigationRail(
+                        selectedIndex: _index,
+                        onDestinationSelected: (value) =>
+                            setState(() => _index = value),
+                        labelType: NavigationRailLabelType.all,
+                        destinations: _destinations
+                            .map(
+                              (item) => NavigationRailDestination(
+                                icon: item.icon,
+                                selectedIcon: item.selectedIcon,
+                                label: Text(item.label),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const VerticalDivider(width: 1),
+                      Expanded(child: body),
+                    ],
+                  )
+                : body,
+          ),
           bottomNavigationBar: wide
               ? null
-              : NavigationBar(
-                  selectedIndex: _index,
-                  onDestinationSelected: (value) =>
-                      setState(() => _index = value),
-                  destinations: _destinations,
+              : SafeArea(
+                  top: false,
+                  child: NavigationBar(
+                    height: 72,
+                    labelBehavior:
+                        NavigationDestinationLabelBehavior.onlyShowSelected,
+                    selectedIndex: _index,
+                    onDestinationSelected: (value) =>
+                        setState(() => _index = value),
+                    destinations: _destinations,
+                  ),
                 ),
         );
       },
     );
   }
+}
+
+class _AdminHeader extends StatelessWidget {
+  const _AdminHeader({required this.email, required this.onSignOut});
+
+  final String email;
+  final Future<void> Function() onSignOut;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 520;
+      return Container(
+        height: 64,
+        padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 24),
+        color: Colors.white,
+        child: Row(
+          children: [
+            SizedBox(
+              width: compact ? 44 : 64,
+              height: 48,
+              child: ClipRect(
+                child: Transform.scale(
+                  scale: compact ? 2.2 : 2.7,
+                  alignment: const Alignment(0, -0.2),
+                  child: Image.asset(
+                    'assets/images/kindlink-admin-mark.png',
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'KindLink Admin',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            if (!compact) ...[
+              const SizedBox(width: 16),
+              Flexible(
+                child: Text(
+                  email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+            const SizedBox(width: 4),
+            KindLinkPressScale(
+              child: IconButton(
+                tooltip: compact ? 'Sign out ($email)' : 'Sign out',
+                onPressed: onSignOut,
+                icon: const Icon(Icons.logout),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class _AdminOverview extends StatelessWidget {
@@ -324,7 +363,7 @@ class _AdminOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(28),
+    padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 28),
     children: [
       Text(
         'Dashboard',
@@ -378,18 +417,24 @@ class _AdminOverview extends StatelessWidget {
             count: (snapshot) => snapshot.docs.length,
             onTap: () => onNavigate(3),
           ),
-          _AdminRealtimeMetric(
-            title: 'Online members',
-            icon: Icons.online_prediction,
-            color: Colors.teal,
-            stream: database.ref('presence').onValue,
-            count: (value) => value is Map
-                ? value.values
-                      .where((entry) => entry is Map && entry['online'] == true)
-                      .length
-                : 0,
-            onTap: () => onNavigate(4),
-          ),
+          if (firebasePresenceEnabled)
+            _AdminRealtimeMetric(
+              title: 'Online members',
+              icon: Icons.online_prediction,
+              color: Colors.teal,
+              stream: database.ref('users').onValue,
+              count: (value) => value is Map
+                  ? value.values
+                        .where(
+                          (entry) =>
+                              entry is Map &&
+                              entry['presence'] is Map &&
+                              (entry['presence'] as Map)['online'] == true,
+                        )
+                        .length
+                  : 0,
+              onTap: () => onNavigate(4),
+            ),
           _AdminRealtimeMetric(
             title: 'Registered members',
             icon: Icons.group_outlined,
@@ -416,43 +461,75 @@ class _KindLinkStatusFlow extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Request journey',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 16 : 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Request journey',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 14),
+            if (compact)
               for (var index = 0; index < _steps.length; index++) ...[
-                Chip(
-                  avatar: Icon(
-                    _steps[index].$2,
-                    size: 18,
-                    color: index == _steps.length - 1
-                        ? kindLinkSuccess
-                        : kindLinkEmerald,
-                  ),
-                  label: Text(_steps[index].$1),
+                Row(
+                  children: [
+                    Icon(
+                      _steps[index].$2,
+                      size: 21,
+                      color: index == _steps.length - 1
+                          ? kindLinkSuccess
+                          : kindLinkEmerald,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _steps[index].$1,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (index < _steps.length - 1)
+                      const Icon(Icons.keyboard_arrow_down, size: 20),
+                  ],
                 ),
                 if (index < _steps.length - 1)
-                  const Icon(Icons.arrow_forward, size: 16),
-              ],
-            ],
-          ),
-        ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(height: 1),
+                  ),
+              ]
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (var index = 0; index < _steps.length; index++) ...[
+                    Chip(
+                      avatar: Icon(
+                        _steps[index].$2,
+                        size: 18,
+                        color: index == _steps.length - 1
+                            ? kindLinkSuccess
+                            : kindLinkEmerald,
+                      ),
+                      label: Text(_steps[index].$1),
+                    ),
+                    if (index < _steps.length - 1)
+                      const Icon(Icons.arrow_forward, size: 16),
+                  ],
+                ],
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _AdminMetric extends StatelessWidget {
@@ -474,7 +551,8 @@ class _AdminMetric extends StatelessWidget {
   Widget build(BuildContext context) =>
       StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: stream,
-        builder: (_, snapshot) => _metricCard(
+        builder: (context, snapshot) => _metricCard(
+          context,
           title,
           snapshot.hasData ? count(snapshot.data!).toString() : '—',
           icon,
@@ -502,22 +580,23 @@ class _AdminRealtimeMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) => StreamBuilder<DatabaseEvent>(
     stream: stream,
-    builder: (_, snapshot) {
+    builder: (context, snapshot) {
       final value = snapshot.data?.snapshot.value;
       final valueText = snapshot.hasData ? count(value).toString() : '—';
-      return _metricCard(title, valueText, icon, color, onTap);
+      return _metricCard(context, title, valueText, icon, color, onTap);
     },
   );
 }
 
 Widget _metricCard(
+  BuildContext context,
   String title,
   String value,
   IconData icon,
   Color color,
   VoidCallback onTap,
 ) => SizedBox(
-  width: 280,
+  width: min(280, MediaQuery.sizeOf(context).width - 32),
   child: Card(
     child: InkWell(
       borderRadius: BorderRadius.circular(20),
@@ -531,18 +610,20 @@ Widget _metricCard(
               child: Icon(icon, color: color),
             ),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                Text(title),
-              ],
+                  Text(title),
+                ],
+              ),
             ),
           ],
         ),
@@ -550,6 +631,69 @@ Widget _metricCard(
     ),
   ),
 );
+
+class _AdminResponsiveTile extends StatelessWidget {
+  const _AdminResponsiveTile({
+    required this.leading,
+    required this.title,
+    required this.subtitle,
+    this.actions = const [],
+    this.onTap,
+  });
+
+  final Widget leading;
+  final Widget title;
+  final Widget subtitle;
+  final List<Widget> actions;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 620;
+      if (!compact) {
+        return ListTile(
+          onTap: onTap,
+          leading: leading,
+          title: title,
+          subtitle: subtitle,
+          trailing: actions.isEmpty
+              ? null
+              : Row(mainAxisSize: MainAxisSize.min, children: actions),
+        );
+      }
+      return InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  leading,
+                  const SizedBox(width: 12),
+                  Expanded(child: title),
+                ],
+              ),
+              const SizedBox(height: 10),
+              DefaultTextStyle.merge(
+                style: Theme.of(context).textTheme.bodyMedium,
+                child: subtitle,
+              ),
+              if (actions.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(spacing: 8, runSpacing: 8, children: actions),
+              ],
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
 
 class _AdminRequestsPage extends StatelessWidget {
   const _AdminRequestsPage();
@@ -644,7 +788,7 @@ class _AdminRequestsPage extends StatelessWidget {
           final status = _requestStatus(data);
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
+            child: _AdminResponsiveTile(
               onTap: () => _details(context, doc),
               leading: const CircleAvatar(
                 child: Icon(Icons.front_hand_outlined),
@@ -655,13 +799,17 @@ class _AdminRequestsPage extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Chip(label: Text(status)),
-                  const SizedBox(width: 8),
-                  DropdownButton<String>(
-                    value: status,
+              actions: [
+                Chip(label: Text(status)),
+                SizedBox(
+                  width: 160,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: status,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Update status',
+                      isDense: true,
+                    ),
                     items: _requestStatuses
                         .map(
                           (value) => DropdownMenuItem(
@@ -674,8 +822,8 @@ class _AdminRequestsPage extends StatelessWidget {
                       if (value != null) _setStatus(doc.reference, value);
                     },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         }).toList(),
@@ -725,29 +873,24 @@ class _AdminOrganizationsPage extends StatelessWidget {
           final status = item['verificationStatus']?.toString() ?? 'pending';
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
+            child: _AdminResponsiveTile(
               leading: Icon(
                 status == 'verified' ? Icons.verified : Icons.apartment,
                 color: status == 'verified' ? Colors.green : null,
               ),
               title: Text(item['name'] ?? 'Organization'),
               subtitle: Text(item['details'] ?? 'No application details.'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Chip(label: Text(status.toUpperCase())),
-                  const SizedBox(width: 8),
-                  OutlinedButton(
-                    onPressed: () => _setStatus(item['id'], 'rejected'),
-                    child: const Text('Reject'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: () => _setStatus(item['id'], 'verified'),
-                    child: const Text('Approve'),
-                  ),
-                ],
-              ),
+              actions: [
+                Chip(label: Text(status.toUpperCase())),
+                OutlinedButton(
+                  onPressed: () => _setStatus(item['id'], 'rejected'),
+                  child: const Text('Reject'),
+                ),
+                FilledButton(
+                  onPressed: () => _setStatus(item['id'], 'verified'),
+                  child: const Text('Approve'),
+                ),
+              ],
             ),
           );
         }).toList(),
@@ -782,7 +925,7 @@ class _AdminDonationsPage extends StatelessWidget {
           final status = data['status']?.toString() ?? 'Pending';
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
+            child: _AdminResponsiveTile(
               leading: const CircleAvatar(
                 child: Icon(Icons.inventory_2_outlined),
               ),
@@ -792,8 +935,7 @@ class _AdminDonationsPage extends StatelessWidget {
               subtitle: Text(
                 'Donor: ${data['donorName'] ?? data['donorId'] ?? 'Unknown'}\nRequest: ${data['requestTitle'] ?? data['helpRequestId'] ?? '—'}',
               ),
-              isThreeLine: true,
-              trailing: Chip(label: Text(status)),
+              actions: [Chip(label: Text(status))],
             ),
           );
         }).toList(),
@@ -832,89 +974,74 @@ class _AdminPeoplePage extends StatelessWidget {
       if (!usersSnapshot.hasData) {
         return const Center(child: CircularProgressIndicator());
       }
-      return StreamBuilder<DatabaseEvent>(
-        stream: database.ref('presence').onValue,
-        builder: (context, presenceSnapshot) {
-          if (!presenceSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final usersRaw = usersSnapshot.data!.snapshot.value;
-          final presenceRaw = presenceSnapshot.data!.snapshot.value;
-          final users = usersRaw is Map ? usersRaw : <Object?, Object?>{};
-          final presence = presenceRaw is Map
-              ? presenceRaw
-              : <Object?, Object?>{};
-          final people = <Map<String, dynamic>>[];
-          for (final entry in users.entries) {
-            if (entry.value is! Map) continue;
-            final uid = entry.key.toString();
-            final live = presence[entry.key] is Map
-                ? Map<String, dynamic>.from(presence[entry.key] as Map)
-                : <String, dynamic>{};
-            people.add({
-              'uid': uid,
-              ...Map<String, dynamic>.from(entry.value as Map),
-              ...live,
-            });
-          }
-          people.sort((a, b) {
-            final onlineOrder = (b['online'] == true ? 1 : 0).compareTo(
-              a['online'] == true ? 1 : 0,
-            );
-            if (onlineOrder != 0) return onlineOrder;
-            return ((b['lastSeen'] as num?) ?? 0).compareTo(
-              (a['lastSeen'] as num?) ?? 0,
-            );
-          });
-          final online = people
-              .where((person) => person['online'] == true)
-              .length;
-          return _AdminList(
-            title: 'Members',
-            subtitle: '$online online now • ${people.length} registered',
-            empty: 'No registered members found.',
-            children: people.map((person) {
-              final isOnline = person['online'] == true;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  leading: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const CircleAvatar(child: Icon(Icons.person_outline)),
-                      Positioned(
-                        right: -1,
-                        bottom: -1,
-                        child: Container(
-                          width: 13,
-                          height: 13,
-                          decoration: BoxDecoration(
-                            color: isOnline ? Colors.green : Colors.grey,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                        ),
+      final usersRaw = usersSnapshot.data!.snapshot.value;
+      final users = usersRaw is Map ? usersRaw : <Object?, Object?>{};
+      final people = <Map<String, dynamic>>[];
+      for (final entry in users.entries) {
+        if (entry.value is! Map) continue;
+        final uid = entry.key.toString();
+        final profile = Map<String, dynamic>.from(entry.value as Map);
+        final live = profile['presence'] is Map
+            ? Map<String, dynamic>.from(profile['presence'] as Map)
+            : <String, dynamic>{};
+        people.add({'uid': uid, ...profile, ...live});
+      }
+      people.sort((a, b) {
+        final onlineOrder = (b['online'] == true ? 1 : 0).compareTo(
+          a['online'] == true ? 1 : 0,
+        );
+        if (onlineOrder != 0) return onlineOrder;
+        return ((b['lastSeen'] as num?) ?? 0).compareTo(
+          (a['lastSeen'] as num?) ?? 0,
+        );
+      });
+      final online = people.where((person) => person['online'] == true).length;
+      return _AdminList(
+        title: 'Members',
+        subtitle: '$online online now • ${people.length} registered',
+        empty: 'No registered members found.',
+        children: people.map((person) {
+          final isOnline = person['online'] == true;
+          return Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: _AdminResponsiveTile(
+              leading: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const CircleAvatar(child: Icon(Icons.person_outline)),
+                  Positioned(
+                    right: -1,
+                    bottom: -1,
+                    child: Container(
+                      width: 13,
+                      height: 13,
+                      decoration: BoxDecoration(
+                        color: isOnline ? Colors.green : Colors.grey,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
-                    ],
-                  ),
-                  title: Text(person['name'] ?? 'Member'),
-                  subtitle: Text(
-                    '${person['username'] == null ? '' : '@${person['username']} • '}'
-                    '${isOnline ? 'Using the member app now' : _lastSeen(person['lastSeen'])}',
-                  ),
-                  trailing: Chip(
-                    avatar: Icon(
-                      Icons.circle,
-                      size: 10,
-                      color: isOnline ? Colors.green : Colors.grey,
                     ),
-                    label: Text(isOnline ? 'ONLINE' : 'OFFLINE'),
                   ),
+                ],
+              ),
+              title: Text(person['name'] ?? 'Member'),
+              subtitle: Text(
+                '${person['username'] == null ? '' : '@${person['username']} • '}'
+                '${isOnline ? 'Using the member app now' : _lastSeen(person['lastSeen'])}',
+              ),
+              actions: [
+                Chip(
+                  avatar: Icon(
+                    Icons.circle,
+                    size: 10,
+                    color: isOnline ? Colors.green : Colors.grey,
+                  ),
+                  label: Text(isOnline ? 'ONLINE' : 'OFFLINE'),
                 ),
-              );
-            }).toList(),
+              ],
+            ),
           );
-        },
+        }).toList(),
       );
     },
   );
@@ -933,7 +1060,7 @@ class _AdminList extends StatelessWidget {
   final List<Widget> children;
   @override
   Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(28),
+    padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 28),
     children: [
       Text(
         title,

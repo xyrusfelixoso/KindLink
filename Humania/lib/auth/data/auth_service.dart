@@ -1,5 +1,31 @@
 part of '../../main.dart';
 
+String? _firstProfileString(
+  Map<Object?, Object?> profile,
+  Iterable<String> keys,
+) {
+  for (final key in keys) {
+    final value = profile[key];
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+  }
+  return null;
+}
+
+String _usernameFromProfile(
+  Map<Object?, Object?> profile,
+  String fallbackName,
+) {
+  final stored = _firstProfileString(profile, const [
+    'username',
+    'nickname',
+    'nickName',
+    'displayName',
+  ]);
+  if (stored != null) return stored.replaceFirst(RegExp(r'^@+'), '');
+  final generated = fallbackName.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+  return generated.isEmpty ? 'member' : generated;
+}
+
 class AuthSession {
   const AuthSession({required this.uid, required this.email, this.displayName});
 
@@ -43,7 +69,11 @@ class FirebaseAuthService implements AuthService {
   final FirebaseDatabase _database;
 
   Future<void> _markOnline(String uid, UserAccount account) async {
-    final presence = _database.ref('presence/$uid');
+    if (!firebasePresenceEnabled) return;
+    // Presence belongs to the signed-in user's profile. The database rules
+    // already allow members to update their own `users/$uid` branch, while a
+    // separate top-level `presence` branch is rejected with permission-denied.
+    final presence = _database.ref('users/$uid/presence');
     try {
       // Register this before publishing the online state so an unexpected app
       // or network disconnect cannot leave the member stuck online.
@@ -71,7 +101,8 @@ class FirebaseAuthService implements AuthService {
   }
 
   Future<void> _markOffline(String uid) async {
-    final presence = _database.ref('presence/$uid');
+    if (!firebasePresenceEnabled) return;
+    final presence = _database.ref('users/$uid/presence');
     try {
       // This must run while Firebase Auth still has the member identity.
       await presence
@@ -115,10 +146,21 @@ class FirebaseAuthService implements AuthService {
     }
 
     final email = session.email;
-    final fallbackName = session.displayName ?? email.split('@').first;
+    final emailName = email.split('@').first;
+    final storedName = _firstProfileString(profile, const [
+      'name',
+      'fullName',
+      'displayName',
+      'nickname',
+      'nickName',
+    ]);
+    final authDisplayName = session.displayName?.trim();
+    final fallbackName =
+        storedName ??
+        (authDisplayName?.isNotEmpty == true ? authDisplayName! : emailName);
     final account = UserAccount(
-      name: profile['name'] as String? ?? fallbackName,
-      username: profile['username'] as String? ?? fallbackName,
+      name: fallbackName,
+      username: _usernameFromProfile(profile, fallbackName),
       email: email,
       profileAvatarIndex: (profile['profileAvatarIndex'] as num?)?.toInt() ?? 0,
       organizationName: profile['organizationName'] as String?,

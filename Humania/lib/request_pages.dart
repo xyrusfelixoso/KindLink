@@ -1073,6 +1073,60 @@ class _DropOffPointsPageState extends State<_DropOffPointsPage> {
   DateTime? _opens;
   DateTime? _closes;
   LatLng? _point;
+  LatLng? _preferredPoint;
+  bool _loadingPreferredLocation = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferredLocation();
+  }
+
+  Future<void> _loadPreferredLocation() async {
+    LatLng? preferredPoint;
+    String? preferredLabel;
+    try {
+      final snapshot = await database
+          .ref('organizations/${widget.organizationId}')
+          .get();
+      final organization = snapshot.value is Map
+          ? Map<Object?, Object?>.from(snapshot.value! as Map)
+          : <Object?, Object?>{};
+      final latitude =
+          (organization['preferredLatitude'] ?? organization['latitude']);
+      final longitude =
+          (organization['preferredLongitude'] ?? organization['longitude']);
+      if (latitude is num && longitude is num) {
+        preferredPoint = LatLng(latitude.toDouble(), longitude.toDouble());
+      }
+      preferredLabel =
+          (organization['preferredLocation'] ?? organization['location'])
+              as String?;
+
+      if (preferredPoint == null &&
+          await Geolocator.isLocationServiceEnabled()) {
+        final permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse) {
+          final position = await Geolocator.getLastKnownPosition();
+          if (position != null) {
+            preferredPoint = LatLng(position.latitude, position.longitude);
+          }
+        }
+      }
+    } on Exception {
+      // The picker still provides its safe default when no preference is saved.
+    }
+    if (!mounted) return;
+    setState(() {
+      _preferredPoint = preferredPoint;
+      _point = preferredPoint;
+      if (preferredLabel != null && preferredLabel.trim().isNotEmpty) {
+        _location.text = preferredLabel.trim();
+      }
+      _loadingPreferredLocation = false;
+    });
+  }
 
   @override
   void dispose() {
@@ -1100,9 +1154,11 @@ class _DropOffPointsPageState extends State<_DropOffPointsPage> {
     final value = await Navigator.push<LatLng>(
       context,
       MaterialPageRoute(
-        builder: (_) => const _DonationLocationPicker(
+        builder: (_) => _DonationLocationPicker(
           title: 'Select drop-off point',
-          instruction: 'Tap the verified collection-point location.',
+          instruction:
+              'Move the pin to your preferred collection-point location.',
+          initialLocation: _point ?? _preferredPoint,
         ),
       ),
     );
@@ -1141,6 +1197,11 @@ class _DropOffPointsPageState extends State<_DropOffPointsPage> {
       'status': 'active',
       'createdAt': FieldValue.serverTimestamp(),
     });
+    await database.ref('organizations/${widget.organizationId}').update({
+      'preferredLocation': _location.text.trim(),
+      'preferredLatitude': _point!.latitude,
+      'preferredLongitude': _point!.longitude,
+    });
     if (mounted) Navigator.pop(context);
   }
 
@@ -1148,59 +1209,105 @@ class _DropOffPointsPageState extends State<_DropOffPointsPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Create drop-off point')),
     body: ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
+        Text(
+          'Drop-off point details',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: kindLinkPrimaryDark,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'The map starts at your organization’s preferred location.',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 20),
         TextField(
           controller: _name,
-          decoration: const InputDecoration(labelText: 'Point name'),
+          textAlignVertical: TextAlignVertical.center,
+          decoration: const InputDecoration(
+            labelText: 'Point name',
+            prefixIcon: Icon(Icons.business_outlined),
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         TextField(
           controller: _location,
-          decoration: const InputDecoration(labelText: 'Approximate location'),
+          textAlignVertical: TextAlignVertical.center,
+          decoration: const InputDecoration(
+            labelText: 'Location name or address',
+            prefixIcon: Icon(Icons.location_on_outlined),
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         TextField(
           controller: _hours,
-          decoration: const InputDecoration(labelText: 'Operating hours'),
+          textAlignVertical: TextAlignVertical.center,
+          decoration: const InputDecoration(
+            labelText: 'Operating hours',
+            hintText: 'Example: Monday–Friday, 8:00 AM–5:00 PM',
+            prefixIcon: Icon(Icons.schedule_outlined),
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         TextField(
           controller: _items,
           minLines: 2,
           maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Accepted items'),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => _pickDate(true),
-                child: Text(
-                  _opens == null ? 'Opening date' : formatPostedDate(_opens!),
-                ),
-              ),
+          textAlignVertical: TextAlignVertical.top,
+          decoration: const InputDecoration(
+            labelText: 'Accepted items',
+            hintText: 'List the donation items accepted here',
+            alignLabelWithHint: true,
+            prefixIcon: Padding(
+              padding: EdgeInsets.only(bottom: 36),
+              child: Icon(Icons.inventory_2_outlined),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => _pickDate(false),
-                child: Text(
-                  _closes == null ? 'Closing date' : formatPostedDate(_closes!),
-                ),
-              ),
-            ),
-          ],
-        ),
-        OutlinedButton.icon(
-          onPressed: _pickPoint,
-          icon: const Icon(Icons.add_location_alt),
-          label: Text(
-            _point == null ? 'Select map location' : 'Location selected',
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: () => _pickDate(true),
+          icon: const Icon(Icons.event_available_outlined),
+          label: Text(
+            _opens == null
+                ? 'Select opening date'
+                : 'Opening date: ${formatPostedDate(_opens!)}',
+          ),
+          style: OutlinedButton.styleFrom(alignment: Alignment.centerLeft),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: () => _pickDate(false),
+          icon: const Icon(Icons.event_busy_outlined),
+          label: Text(
+            _closes == null
+                ? 'Select closing date'
+                : 'Closing date: ${formatPostedDate(_closes!)}',
+          ),
+          style: OutlinedButton.styleFrom(alignment: Alignment.centerLeft),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _loadingPreferredLocation ? null : _pickPoint,
+          icon: _loadingPreferredLocation
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_location_alt_outlined),
+          label: Text(
+            _loadingPreferredLocation
+                ? 'Loading preferred location…'
+                : _point == null
+                ? 'Select preferred map location'
+                : 'Change preferred map location',
+          ),
+          style: OutlinedButton.styleFrom(alignment: Alignment.centerLeft),
+        ),
+        const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: _save,
           icon: const Icon(Icons.add_business),

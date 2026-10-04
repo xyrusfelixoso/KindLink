@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.3+4
 
 environment:
   sdk: ^3.13.0
@@ -34,10 +34,12 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  firebase_auth: ^6.1.0
-  firebase_core: ^4.1.0
-  firebase_database: ^12.0.0
-  cloud_firestore: ^6.0.2
+  # Keep this compatible set pinned until FlutterFire's built-in Kotlin
+  # migration lands. Newer versions currently fail Android plugin registration.
+  firebase_auth: 6.6.1
+  firebase_core: 4.14.0
+  firebase_database: 12.5.0
+  cloud_firestore: 6.9.0
   flutter_map: ^8.2.2
   geolocator: ^14.0.2
   image_picker: ^1.1.2
@@ -61,6 +63,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+
+  # A plain `flutter run` should launch the member app. Without a default,
+  # Flutter builds app-user-debug.apk but then looks for app-debug.apk.
+  default-flavor: user
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

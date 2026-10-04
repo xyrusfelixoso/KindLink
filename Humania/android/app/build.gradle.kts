@@ -10,6 +10,12 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    flavorDimensions += "kindlink"
+
+    buildFeatures {
+        resValues = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -28,6 +34,19 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    productFlavors {
+        create("user") {
+            dimension = "kindlink"
+            resValue("string", "app_name", "KindLink")
+        }
+        create("admin") {
+            dimension = "kindlink"
+            applicationIdSuffix = ".admin"
+            versionNameSuffix = "-admin"
+            resValue("string", "app_name", "KindLink Admin")
+        }
     }
 
     buildTypes {

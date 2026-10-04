@@ -46,6 +46,13 @@ const designatedAdminEmails = {'xyrusfelix@gmail.com'};
 
 const adminWeb = bool.fromEnvironment('ADMIN_WEB', defaultValue: true);
 const adminApp = bool.fromEnvironment('ADMIN_APP', defaultValue: false);
+// Realtime Database currently rejects presence writes in production. Keep this
+// optional feature off until matching backend rules are deployed, so normal
+// authentication and dashboard use never produce permission-denied errors.
+const firebasePresenceEnabled = bool.fromEnvironment(
+  'FIREBASE_PRESENCE_ENABLED',
+  defaultValue: false,
+);
 const kindLinkEmerald = Color(0xff2a7f73);
 const kindLinkPrimaryDark = Color(0xff1f5f57);
 const kindLinkBlue = Color(0xff4a90e2);
@@ -134,6 +141,19 @@ class _KindLinkPressScaleState extends State<KindLinkPressScale> {
   );
 }
 
+class KindLinkNoPageTransitionsBuilder extends PageTransitionsBuilder {
+  const KindLinkNoPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => child;
+}
+
 bool isDesignatedAdminEmail(String? email) =>
     email != null && designatedAdminEmails.contains(email.trim().toLowerCase());
 
@@ -203,6 +223,15 @@ class _MyAppState extends State<MyApp> {
               onSurface: kindLinkNavy,
             ),
         useMaterial3: true,
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: KindLinkNoPageTransitionsBuilder(),
+            TargetPlatform.iOS: KindLinkNoPageTransitionsBuilder(),
+            TargetPlatform.macOS: KindLinkNoPageTransitionsBuilder(),
+            TargetPlatform.windows: KindLinkNoPageTransitionsBuilder(),
+            TargetPlatform.linux: KindLinkNoPageTransitionsBuilder(),
+          },
+        ),
         scaffoldBackgroundColor: kindLinkCream,
         fontFamily: 'Arial',
         textTheme: ThemeData.light().textTheme.apply(

@@ -43,19 +43,6 @@ String _organizationDonationGuidance(
   _ => 'Review this donation request.',
 };
 
-class _CampaignHubPage extends StatelessWidget {
-  const _CampaignHubPage({required this.role, required this.user});
-  final String role;
-  final UserAccount user;
-
-  @override
-  Widget build(BuildContext context) => switch (role) {
-    'Organization' => _OrganizationCampaignsPage(user: user),
-    'Admin' when user.isAdmin => const _AdminOrganizationVerificationPage(),
-    _ => _DonorCampaignsPage(user: user),
-  };
-}
-
 class _AdminOrganizationVerificationPage extends StatelessWidget {
   const _AdminOrganizationVerificationPage();
 
@@ -278,8 +265,15 @@ class _OrganizationCampaignsPage extends StatelessWidget {
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 112),
                   itemCount: docs.length,
-                  itemBuilder: (_, index) =>
-                      _CampaignCard(document: docs[index], organization: true),
+                  itemBuilder: (context, index) => _CampaignCard(
+                    document: docs[index],
+                    organization: true,
+                    onPostReport: () => _postCampaignDistributionReport(
+                      context,
+                      docs[index].id,
+                      docs[index].data(),
+                    ),
+                  ),
                 );
               },
             ),
@@ -294,36 +288,12 @@ class _DonorCampaignsPage extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text(
-        'Campaign management',
+        'Donation campaigns',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
       ),
       actions: [
-        KindLinkPressScale(
-          child: IconButton.filledTonal(
-            tooltip: 'Organization donation requests',
-            onPressed: () {
-              final organizationId =
-                  firebase_auth.FirebaseAuth.instance.currentUser?.uid;
-              if (organizationId == null) return;
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      _OrganizationOffersPage(organizationId: organizationId),
-                ),
-              );
-            },
-            style: IconButton.styleFrom(
-              backgroundColor: kindLinkOrange.withValues(alpha: 0.16),
-              foregroundColor: const Color(0xffa95f00),
-              minimumSize: const Size.square(42),
-            ),
-            icon: const Icon(Icons.inbox_rounded),
-          ),
-        ),
-        const SizedBox(width: 6),
         KindLinkPressScale(
           child: IconButton.filledTonal(
             tooltip: 'My donation pledges',
@@ -341,30 +311,6 @@ class _DonorCampaignsPage extends StatelessWidget {
         ),
         const SizedBox(width: 12),
       ],
-    ),
-    floatingActionButton: KindLinkPressScale(
-      child: FloatingActionButton(
-        tooltip: 'Create campaign',
-        onPressed: () {
-          final organizationId =
-              firebase_auth.FirebaseAuth.instance.currentUser?.uid;
-          if (organizationId == null) return;
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => _CreateCampaignPage(
-                user: user,
-                organizationId: organizationId,
-              ),
-            ),
-          );
-        },
-        backgroundColor: kindLinkOrange,
-        foregroundColor: Colors.white,
-        elevation: 5,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add_rounded, size: 32),
-      ),
     ),
     body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -419,68 +365,31 @@ class _DonorPledgesPage extends StatelessWidget {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (snapshot.data!.docs.isEmpty) {
+                final pledges = snapshot.data!.docs.toList()
+                  ..sort((a, b) {
+                    final aTime = a.data()['createdAt'] as Timestamp?;
+                    final bTime = b.data()['createdAt'] as Timestamp?;
+                    return (bTime?.millisecondsSinceEpoch ?? 0).compareTo(
+                      aTime?.millisecondsSinceEpoch ?? 0,
+                    );
+                  });
+                if (pledges.isEmpty) {
                   return const Center(child: Text('No pledges submitted yet.'));
                 }
-                return ListView(
+                return ListView.separated(
                   padding: const EdgeInsets.all(20),
-                  children: snapshot.data!.docs.map((doc) {
-                    final pledge = doc.data();
-                    final status = pledge['status'] as String? ?? 'Pending';
-                    final handover = pledge['handoverMethod'] as String?;
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              pledge['campaignTitle'] as String? ?? 'Campaign',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 17,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text('Status: $status'),
-                            if (handover != null) Text('Handover: $handover'),
-                            if (status == 'Approved' && handover == null) ...[
-                              const SizedBox(height: 12),
-                              const Text('Choose how to hand over the items:'),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  OutlinedButton.icon(
-                                    onPressed: () => doc.reference.update({
-                                      'handoverMethod': 'Drop-off',
-                                      'handoverSelectedAt':
-                                          FieldValue.serverTimestamp(),
-                                    }),
-                                    icon: const Icon(Icons.store_outlined),
-                                    label: const Text('Drop-off'),
-                                  ),
-                                  FilledButton.icon(
-                                    onPressed: () => doc.reference.update({
-                                      'handoverMethod': 'Pickup',
-                                      'handoverSelectedAt':
-                                          FieldValue.serverTimestamp(),
-                                    }),
-                                    icon: const Icon(
-                                      Icons.local_shipping_outlined,
-                                    ),
-                                    label: const Text('Pickup'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
+                  itemCount: pledges.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) => _DonorPledgeCard(
+                    pledge: pledges[index],
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => _DonorPledgeDetailsPage(
+                          pledgeReference: pledges[index].reference,
                         ),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ),
                 );
               },
             ),
@@ -488,15 +397,854 @@ class _DonorPledgesPage extends StatelessWidget {
   }
 }
 
+class _DonorPledgeCard extends StatelessWidget {
+  const _DonorPledgeCard({required this.pledge, required this.onTap});
+
+  final QueryDocumentSnapshot<Map<String, dynamic>> pledge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = pledge.data();
+    final status = data['status'] as String? ?? 'Pending';
+    final color = _donorPledgeStatusColor(status);
+    final createdAt = data['createdAt'] as Timestamp?;
+    final itemCount = (data['itemCount'] as num? ?? 1).toInt();
+    final handover = data['handoverMethod'] as String?;
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: color.withValues(alpha: .18)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: color.withValues(alpha: .12),
+                    foregroundColor: color,
+                    child: Icon(_donorPledgeStatusIcon(status)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          data['campaignTitle'] as String? ?? 'Campaign',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$itemCount item type${itemCount == 1 ? '' : 's'}'
+                          '${createdAt == null ? '' : ' • ${formatPostedDate(createdAt.toDate())}'}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _DonorPledgeStatusBadge(status: status),
+                ],
+              ),
+              if (handover != null) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      handover == 'Pickup'
+                          ? Icons.local_shipping_outlined
+                          : Icons.store_outlined,
+                      size: 18,
+                      color: kindLinkEmerald,
+                    ),
+                    const SizedBox(width: 7),
+                    Text('Handover: $handover'),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'View details',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DonorPledgeDetailsPage extends StatelessWidget {
+  const _DonorPledgeDetailsPage({required this.pledgeReference});
+
+  final DocumentReference<Map<String, dynamic>> pledgeReference;
+
+  Future<void> _selectHandover(
+    BuildContext context,
+    String method, {
+    Map<String, dynamic>? dropOffPoint,
+  }) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final latest = await transaction.get(pledgeReference);
+        final latestData = latest.data();
+        if (latestData?['status'] != 'Approved') {
+          throw Exception(
+            'Only approved pledges can select a handover method.',
+          );
+        }
+        transaction.update(pledgeReference, {
+          'handoverMethod': method,
+          'handoverSelectedAt': FieldValue.serverTimestamp(),
+          if (dropOffPoint != null) ...{
+            'dropOffPointId': dropOffPoint['id'],
+            'dropOffPointName': dropOffPoint['name'],
+            'dropOffPointLocation': dropOffPoint['approximateLocation'],
+            'dropOffPointHours': dropOffPoint['operatingHours'],
+            'dropOffPointLatitude': dropOffPoint['latitude'],
+            'dropOffPointLongitude': dropOffPoint['longitude'],
+            'dropOffPointDistanceMeters': dropOffPoint['distanceMeters'],
+          },
+        });
+        final organizationId = latestData?['organizationId'] as String?;
+        if (organizationId != null) {
+          transaction.set(
+            FirebaseFirestore.instance.collection('notifications').doc(),
+            {
+              'recipientId': organizationId,
+              'type': 'campaignHandoverSelected',
+              'campaignId': latestData?['campaignId'],
+              'donationId': pledgeReference.id,
+              'title': '$method selected',
+              'message': dropOffPoint == null
+                  ? 'The donor selected pickup for ${latestData?['campaignTitle'] ?? 'a campaign pledge'}.'
+                  : 'The donor selected ${dropOffPoint['name']} as the drop-off point.',
+              'read': false,
+              'createdAt': FieldValue.serverTimestamp(),
+            },
+          );
+        }
+      });
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$method selected.')));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<Position> _currentDonorPosition() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      throw Exception(
+        'Turn on location services to find the nearest drop-off point.',
+      );
+    }
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied) {
+      throw Exception(
+        'Location permission is required to suggest the nearest point.',
+      );
+    }
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Location permission is disabled. Enable it in device settings to find a drop-off point.',
+      );
+    }
+    return Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+  }
+
+  Future<void> _suggestNearestDropOff(
+    BuildContext context,
+    Map<String, dynamic> pledge,
+  ) async {
+    final organizationId = pledge['organizationId'] as String?;
+    if (organizationId == null || organizationId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This campaign has no organization assigned.'),
+        ),
+      );
+      return;
+    }
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Finding the nearest drop-off point...')),
+      );
+      final position = await _currentDonorPosition();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('dropOffPoints')
+          .where('organizationId', isEqualTo: organizationId)
+          .get();
+      final now = DateTime.now();
+      final points =
+          snapshot.docs
+              .where((document) {
+                final data = document.data();
+                final opening = data['openingDate'] as Timestamp?;
+                final closing = data['closingDate'] as Timestamp?;
+                return data['status'] == 'active' &&
+                    data['latitude'] is num &&
+                    data['longitude'] is num &&
+                    (opening == null || !now.isBefore(opening.toDate())) &&
+                    (closing == null || !now.isAfter(closing.toDate()));
+              })
+              .map((document) {
+                final data = <String, dynamic>{
+                  ...document.data(),
+                  'id': document.id,
+                };
+                data['distanceMeters'] = Geolocator.distanceBetween(
+                  position.latitude,
+                  position.longitude,
+                  (data['latitude'] as num).toDouble(),
+                  (data['longitude'] as num).toDouble(),
+                );
+                return data;
+              })
+              .toList()
+            ..sort(
+              (a, b) => (a['distanceMeters'] as double).compareTo(
+                b['distanceMeters'] as double,
+              ),
+            );
+      if (points.isEmpty) {
+        throw Exception(
+          'This organization has no active drop-off point right now. Choose Pickup instead.',
+        );
+      }
+      if (!context.mounted) return;
+      final nearest = points.first;
+      final donorPoint = LatLng(position.latitude, position.longitude);
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          scrollable: true,
+          title: const Text('Nearest drop-off point'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                nearest['name'] as String? ?? 'Collection point',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(nearest['approximateLocation'] as String? ?? ''),
+              if ((nearest['operatingHours'] as String? ?? '').isNotEmpty)
+                Text('Hours: ${nearest['operatingHours']}'),
+              const SizedBox(height: 8),
+              Text(
+                'Distance: ${_formatDropOffDistance(nearest['distanceMeters'] as double)}',
+                style: const TextStyle(
+                  color: kindLinkEmerald,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(dialogContext).push(
+                MaterialPageRoute(
+                  builder: (_) => _DropOffPointMapPage(
+                    point: nearest,
+                    donorLocation: donorPoint,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('View map'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Use this point'),
+            ),
+          ],
+        ),
+      );
+      if (accepted == true && context.mounted) {
+        await _selectHandover(context, 'Drop-off', dropOffPoint: nearest);
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _cancel(
+    BuildContext context,
+    Map<String, dynamic> pledge,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> items,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel this pledge?'),
+        content: const Text(
+          'The reserved quantities will become available to other donors. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep pledge'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cancel pledge'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final firestore = FirebaseFirestore.instance;
+    try {
+      await firestore.runTransaction((transaction) async {
+        final latestPledge = await transaction.get(pledgeReference);
+        if (latestPledge.data()?['status'] != 'Pending') {
+          throw Exception('Only pending pledges can be cancelled.');
+        }
+        final campaignItems =
+            <String, DocumentSnapshot<Map<String, dynamic>>>{};
+        for (final item in items) {
+          final reference = firestore
+              .collection('campaignItems')
+              .doc(item.data()['campaignItemId'] as String);
+          campaignItems[item.id] = await transaction.get(reference);
+        }
+        for (final item in items) {
+          final offered = _campaignQuantity(item.data(), 'quantityOffered');
+          final campaignItem = campaignItems[item.id]!;
+          final current = campaignItem.data();
+          if (current == null) continue;
+          final needed = _campaignQuantity(current, 'quantityNeeded');
+          final received = _campaignQuantity(current, 'quantityReceived');
+          transaction.update(campaignItem.reference, {
+            'quantityRemaining': min(
+              max(0, needed - received),
+              _campaignRemaining(current) + offered,
+            ),
+            'quantityPledged': max(
+              0,
+              _campaignQuantity(current, 'quantityPledged') - offered,
+            ),
+          });
+        }
+        transaction.update(pledgeReference, {
+          'status': 'Cancelled',
+          'cancelledAt': FieldValue.serverTimestamp(),
+        });
+        final organizationId = pledge['organizationId'] as String?;
+        if (organizationId != null) {
+          transaction.set(firestore.collection('notifications').doc(), {
+            'recipientId': organizationId,
+            'type': 'campaignPledgeCancelled',
+            'campaignId': pledge['campaignId'],
+            'donationId': pledgeReference.id,
+            'title': 'Donation pledge cancelled',
+            'message':
+                '${pledge['donorName'] ?? 'A donor'} cancelled a pledge for ${pledge['campaignTitle'] ?? 'your campaign'}.',
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      });
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pledge cancelled successfully.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: pledgeReference.snapshots(),
+      builder: (context, pledgeSnapshot) {
+        if (!pledgeSnapshot.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final pledge = pledgeSnapshot.data!.data();
+        if (pledge == null) {
+          return const Scaffold(
+            body: Center(child: Text('This pledge is no longer available.')),
+          );
+        }
+        final status = pledge['status'] as String? ?? 'Pending';
+        final handover = pledge['handoverMethod'] as String?;
+        final message = (pledge['message'] as String? ?? '').trim();
+        final createdAt = pledge['createdAt'] as Timestamp?;
+        return Scaffold(
+          appBar: AppBar(title: const Text('Pledge details')),
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('donationItems')
+                .where('donationId', isEqualTo: pledgeReference.id)
+                .snapshots(),
+            builder: (context, itemSnapshot) {
+              if (!itemSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final items = itemSnapshot.data!.docs;
+              return ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          pledge['campaignTitle'] as String? ?? 'Campaign',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      _DonorPledgeStatusBadge(status: status),
+                    ],
+                  ),
+                  if (createdAt != null) ...[
+                    const SizedBox(height: 6),
+                    Text('Submitted ${formatPostedDate(createdAt.toDate())}'),
+                  ],
+                  const SizedBox(height: 16),
+                  Card(
+                    color: _donorPledgeStatusColor(status)
+                        .withValues(alpha: .08),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            _donorPledgeStatusIcon(status),
+                            color: _donorPledgeStatusColor(status),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text(_donorPledgeGuidance(status))),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (message.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Your message',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(message),
+                  ],
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Items pledged',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...items.map((item) {
+                    final data = item.data();
+                    return Card(
+                      child: ListTile(
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.inventory_2_outlined),
+                        ),
+                        title: Text(data['itemName'] ?? 'Item'),
+                        subtitle: Text(
+                          'Offered: ${_campaignQuantity(data, 'quantityOffered')}'
+                          '\nReceived: ${_campaignQuantity(data, 'quantityReceived')}'
+                          '\nCondition: ${data['condition'] ?? 'Not specified'}',
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  }),
+                  if (status == 'Approved' && handover == null) ...[
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Choose handover method',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () =>
+                              _suggestNearestDropOff(context, pledge),
+                          icon: const Icon(Icons.store_outlined),
+                          label: const Text('Find nearest drop-off'),
+                        ),
+                        FilledButton.icon(
+                          onPressed: () => _selectHandover(context, 'Pickup'),
+                          icon: const Icon(Icons.local_shipping_outlined),
+                          label: const Text('Pickup'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (handover != null) ...[
+                    const SizedBox(height: 20),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        handover == 'Pickup'
+                            ? Icons.local_shipping_outlined
+                            : Icons.store_outlined,
+                        color: kindLinkEmerald,
+                      ),
+                      title: const Text('Handover method'),
+                      subtitle: Text(handover),
+                    ),
+                    if (handover == 'Drop-off' &&
+                        pledge['dropOffPointLatitude'] is num &&
+                        pledge['dropOffPointLongitude'] is num)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                pledge['dropOffPointName'] as String? ??
+                                    'Selected drop-off point',
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if ((pledge['dropOffPointLocation'] as String? ??
+                                      '')
+                                  .isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 5),
+                                  child: Text(pledge['dropOffPointLocation']),
+                                ),
+                              if ((pledge['dropOffPointHours'] as String? ?? '')
+                                  .isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 3),
+                                  child: Text(
+                                    'Hours: ${pledge['dropOffPointHours']}',
+                                  ),
+                                ),
+                              if (pledge['dropOffPointDistanceMeters'] is num)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 3),
+                                  child: Text(
+                                    'Distance when selected: ${_formatDropOffDistance((pledge['dropOffPointDistanceMeters'] as num).toDouble())}',
+                                  ),
+                                ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => _DropOffPointMapPage(
+                                      point: {
+                                        'name': pledge['dropOffPointName'],
+                                        'approximateLocation':
+                                            pledge['dropOffPointLocation'],
+                                        'operatingHours':
+                                            pledge['dropOffPointHours'],
+                                        'latitude':
+                                            pledge['dropOffPointLatitude'],
+                                        'longitude':
+                                            pledge['dropOffPointLongitude'],
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.map_outlined),
+                                label: const Text('View on map'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                  if (status == 'Pending') ...[
+                    const SizedBox(height: 24),
+                    OutlinedButton.icon(
+                      onPressed: () => _cancel(context, pledge, items),
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Cancel pending pledge'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red.shade700,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+String _formatDropOffDistance(double meters) => meters < 1000
+    ? '${meters.round()} m away'
+    : '${(meters / 1000).toStringAsFixed(1)} km away';
+
+class _DropOffPointMapPage extends StatelessWidget {
+  const _DropOffPointMapPage({required this.point, this.donorLocation});
+
+  final Map<String, dynamic> point;
+  final LatLng? donorLocation;
+
+  @override
+  Widget build(BuildContext context) {
+    final dropOff = LatLng(
+      (point['latitude'] as num).toDouble(),
+      (point['longitude'] as num).toDouble(),
+    );
+    final center = donorLocation == null
+        ? dropOff
+        : LatLng(
+            (dropOff.latitude + donorLocation!.latitude) / 2,
+            (dropOff.longitude + donorLocation!.longitude) / 2,
+          );
+    final distance = donorLocation == null
+        ? 0.0
+        : Geolocator.distanceBetween(
+            donorLocation!.latitude,
+            donorLocation!.longitude,
+            dropOff.latitude,
+            dropOff.longitude,
+          );
+    final zoom = donorLocation == null
+        ? 15.0
+        : distance < 1000
+        ? 14.5
+        : distance < 5000
+        ? 12.5
+        : distance < 20000
+        ? 10.5
+        : 8.5;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Drop-off point map')),
+      body: Stack(
+        children: [
+          FlutterMap(
+            options: MapOptions(initialCenter: center, initialZoom: zoom),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.humania',
+              ),
+              if (donorLocation != null)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: [donorLocation!, dropOff],
+                      strokeWidth: 4,
+                      color: kindLinkEmerald.withValues(alpha: .7),
+                    ),
+                  ],
+                ),
+              MarkerLayer(
+                markers: [
+                  if (donorLocation != null)
+                    Marker(
+                      point: donorLocation!,
+                      width: 48,
+                      height: 48,
+                      child: const Tooltip(
+                        message: 'Your current location',
+                        child: Icon(
+                          Icons.my_location,
+                          color: kindLinkBlue,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                  Marker(
+                    point: dropOff,
+                    width: 52,
+                    height: 52,
+                    child: Tooltip(
+                      message: point['name'] as String? ?? 'Drop-off point',
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Colors.green,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: SafeArea(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        point['name'] as String? ?? 'Drop-off point',
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if ((point['approximateLocation'] as String? ?? '')
+                          .isNotEmpty)
+                        Text(point['approximateLocation']),
+                      if ((point['operatingHours'] as String? ?? '').isNotEmpty)
+                        Text('Hours: ${point['operatingHours']}'),
+                      if (donorLocation != null)
+                        Text(
+                          _formatDropOffDistance(distance),
+                          style: const TextStyle(
+                            color: kindLinkEmerald,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DonorPledgeStatusBadge extends StatelessWidget {
+  const _DonorPledgeStatusBadge({required this.status});
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _donorPledgeStatusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+Color _donorPledgeStatusColor(String status) => switch (status) {
+  'Approved' => kindLinkSuccess,
+  'Received' => kindLinkEmerald,
+  'Rejected' || 'Cancelled' => Colors.red.shade700,
+  _ => kindLinkOrange,
+};
+
+IconData _donorPledgeStatusIcon(String status) => switch (status) {
+  'Approved' => Icons.check_circle_outline,
+  'Received' => Icons.task_alt,
+  'Rejected' || 'Cancelled' => Icons.cancel_outlined,
+  _ => Icons.schedule_rounded,
+};
+
+String _donorPledgeGuidance(String status) => switch (status) {
+  'Pending' => 'Waiting for the organization to review your pledged items.',
+  'Approved' => 'Your pledge was approved. Choose pickup or drop-off to arrange the handover.',
+  'Received' => 'Completed. The organization confirmed the received items.',
+  'Rejected' => 'The organization declined this pledge. Its quantities are available again.',
+  'Cancelled' =>
+    'You cancelled this pledge. Its quantities are available to other donors.',
+  _ => 'Track this pledge and its handover progress here.',
+};
+
 class _CampaignCard extends StatelessWidget {
   const _CampaignCard({
     required this.document,
     required this.organization,
     this.user,
+    this.onPostReport,
   });
   final QueryDocumentSnapshot<Map<String, dynamic>> document;
   final bool organization;
   final UserAccount? user;
+  final VoidCallback? onPostReport;
   @override
   Widget build(BuildContext context) {
     final data = document.data();
@@ -577,6 +1325,17 @@ class _CampaignCard extends StatelessWidget {
                   style: const TextStyle(
                     color: kindLinkSecondaryText,
                     height: 1.4,
+                  ),
+                ),
+              ],
+              if (onPostReport != null) ...[
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: onPostReport,
+                    icon: const Icon(Icons.post_add_outlined, size: 19),
+                    label: const Text('Post donation report'),
                   ),
                 ),
               ],
@@ -906,6 +1665,113 @@ class _CreateCampaignPageState extends State<_CreateCampaignPage> {
   );
 }
 
+Future<void> _postCampaignDistributionReport(
+  BuildContext context,
+  String campaignId,
+  Map<String, dynamic> campaign,
+) async {
+  final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null || campaign['organizationId'] != uid) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Only the campaign organization can post reports.'),
+      ),
+    );
+    return;
+  }
+  final organizationSnapshot = await database.ref('organizations/$uid').get();
+  final organization = organizationSnapshot.value is Map
+      ? Map<Object?, Object?>.from(organizationSnapshot.value! as Map)
+      : <Object?, Object?>{};
+  if (organization['ownerUid'] != uid ||
+      organization['verificationStatus'] != 'verified') {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verified organization leader access is required.'),
+        ),
+      );
+    }
+    return;
+  }
+  if (!context.mounted) return;
+  final summary = TextEditingController();
+  final beneficiaries = TextEditingController();
+  final distributedItems = TextEditingController();
+  final submit = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      scrollable: true,
+      title: const Text('Post donation report'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: beneficiaries,
+            decoration: const InputDecoration(
+              labelText: 'Beneficiaries reached',
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: distributedItems,
+            decoration: const InputDecoration(labelText: 'Items distributed'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: summary,
+            minLines: 3,
+            maxLines: 5,
+            decoration: const InputDecoration(labelText: 'Report summary'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Post report'),
+        ),
+      ],
+    ),
+  );
+  final beneficiariesValue = beneficiaries.text.trim();
+  final distributedItemsValue = distributedItems.text.trim();
+  final summaryValue = summary.text.trim();
+  beneficiaries.dispose();
+  distributedItems.dispose();
+  summary.dispose();
+  if (submit != true ||
+      beneficiariesValue.isEmpty ||
+      distributedItemsValue.isEmpty ||
+      summaryValue.isEmpty) {
+    return;
+  }
+  final firestore = FirebaseFirestore.instance;
+  final batch = firestore.batch();
+  batch.set(firestore.collection('campaignReports').doc(), {
+    'campaignId': campaignId,
+    'organizationId': campaign['organizationId'],
+    'campaignTitle': campaign['title'],
+    'beneficiariesReached': beneficiariesValue,
+    'itemsDistributed': distributedItemsValue,
+    'summary': summaryValue,
+    'createdAt': FieldValue.serverTimestamp(),
+  });
+  batch.update(firestore.collection('campaigns').doc(campaignId), {
+    'lastDistributionReportAt': FieldValue.serverTimestamp(),
+    'distributionReportCount': FieldValue.increment(1),
+  });
+  await batch.commit();
+  if (context.mounted) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Donation report posted.')));
+  }
+}
+
 class _CampaignItemsPage extends StatelessWidget {
   const _CampaignItemsPage({
     required this.campaignId,
@@ -918,78 +1784,8 @@ class _CampaignItemsPage extends StatelessWidget {
   final bool organization;
   final UserAccount? user;
 
-  Future<void> _postDistributionReport(BuildContext context) async {
-    final summary = TextEditingController();
-    final beneficiaries = TextEditingController();
-    final distributedItems = TextEditingController();
-    final submit = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        scrollable: true,
-        title: const Text('Post distribution report'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: beneficiaries,
-              decoration: const InputDecoration(
-                labelText: 'Beneficiaries reached',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: distributedItems,
-              decoration: const InputDecoration(labelText: 'Items distributed'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: summary,
-              minLines: 3,
-              maxLines: 5,
-              decoration: const InputDecoration(labelText: 'Report summary'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Post report'),
-          ),
-        ],
-      ),
-    );
-    if (submit != true ||
-        beneficiaries.text.trim().isEmpty ||
-        distributedItems.text.trim().isEmpty ||
-        summary.text.trim().isEmpty) {
-      return;
-    }
-    final firestore = FirebaseFirestore.instance;
-    final batch = firestore.batch();
-    batch.set(firestore.collection('campaignReports').doc(), {
-      'campaignId': campaignId,
-      'organizationId': campaign['organizationId'],
-      'campaignTitle': campaign['title'],
-      'beneficiariesReached': beneficiaries.text.trim(),
-      'itemsDistributed': distributedItems.text.trim(),
-      'summary': summary.text.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    batch.update(firestore.collection('campaigns').doc(campaignId), {
-      'lastDistributionReportAt': FieldValue.serverTimestamp(),
-      'distributionReportCount': FieldValue.increment(1),
-    });
-    await batch.commit();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Distribution report posted.')),
-      );
-    }
-  }
+  Future<void> _postDistributionReport(BuildContext context) =>
+      _postCampaignDistributionReport(context, campaignId, campaign);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -999,7 +1795,7 @@ class _CampaignItemsPage extends StatelessWidget {
         if (organization)
           KindLinkPressScale(
             child: IconButton(
-              tooltip: 'Post distribution report',
+              tooltip: 'Post donation report',
               onPressed: () => _postDistributionReport(context),
               icon: const Icon(Icons.post_add_outlined),
             ),
@@ -1356,7 +2152,7 @@ class _CampaignReportsSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Distribution reports',
+                    'Donation reports',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -2122,6 +2918,47 @@ class _OrganizationOfferDetailsPage extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text('Handover: ${data['handoverMethod']}'),
+                ),
+              if (data['handoverMethod'] == 'Drop-off' &&
+                  data['dropOffPointName'] != null)
+                Card(
+                  margin: const EdgeInsets.only(top: 10),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.location_on_outlined,
+                      color: kindLinkEmerald,
+                    ),
+                    title: Text(data['dropOffPointName']),
+                    subtitle: Text(
+                      [
+                        data['dropOffPointLocation'],
+                        if (data['dropOffPointHours'] != null)
+                          'Hours: ${data['dropOffPointHours']}',
+                      ].whereType<String>().join('\n'),
+                    ),
+                    trailing:
+                        data['dropOffPointLatitude'] is num &&
+                            data['dropOffPointLongitude'] is num
+                        ? IconButton(
+                            tooltip: 'View on map',
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => _DropOffPointMapPage(
+                                  point: {
+                                    'name': data['dropOffPointName'],
+                                    'approximateLocation':
+                                        data['dropOffPointLocation'],
+                                    'operatingHours': data['dropOffPointHours'],
+                                    'latitude': data['dropOffPointLatitude'],
+                                    'longitude': data['dropOffPointLongitude'],
+                                  },
+                                ),
+                              ),
+                            ),
+                            icon: const Icon(Icons.map_outlined),
+                          )
+                        : null,
+                  ),
                 ),
               if ((data['message'] as String? ?? '').isNotEmpty)
                 Padding(

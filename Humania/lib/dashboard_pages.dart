@@ -106,14 +106,20 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<void> _startPresence() async {
+    if (!firebasePresenceEnabled) return;
     final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     await _connectionSubscription?.cancel();
-    final presence = database.ref('presence/$uid');
-    await presence.onDisconnect().update({
-      'online': false,
-      'lastSeen': ServerValue.timestamp,
-    });
+    final presence = database.ref('users/$uid/presence');
+    try {
+      await presence.onDisconnect().update({
+        'online': false,
+        'lastSeen': ServerValue.timestamp,
+      });
+    } on FirebaseException {
+      // Presence is supplementary. Keep the dashboard usable if the remote
+      // rules are temporarily stricter or the database is unavailable.
+    }
     _connectionSubscription = database.ref('.info/connected').onValue.listen((
       event,
     ) {
@@ -122,10 +128,11 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<void> _setPresence(bool online) async {
+    if (!firebasePresenceEnabled) return;
     final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
-      await database.ref('presence/$uid').update({
+      await database.ref('users/$uid/presence').update({
         'online': online,
         'name': widget.user.name,
         'username': widget.user.username,
@@ -287,9 +294,8 @@ class _DashboardPageState extends State<DashboardPage>
         'location': item.location,
         'donor': item.donor,
         'ownerUid': item.ownerUid,
-        'requesterName':
-            firebase_auth.FirebaseAuth.instance.currentUser?.displayName ??
-            'Community member',
+        'requesterName': widget.user.name,
+        'requesterUsername': widget.user.username,
         'requestedAt': DateTime.now().toIso8601String(),
         'status': 'pending',
       });
@@ -442,7 +448,7 @@ class _DashboardPageState extends State<DashboardPage>
         user: widget.user,
       ),
       _RequestHelpPage(user: widget.user),
-      _CampaignHubPage(role: widget.role, user: widget.user),
+      _OrganizationPage(user: widget.user, onSaved: () => setState(() {})),
       _ReferenceProfileTab(
         user: widget.user,
         onSignOut: _signOut,
@@ -633,57 +639,43 @@ class _BottomBarItem extends StatelessWidget {
       button: true,
       selected: selected,
       label: label == 'Orgs' ? 'Organizations' : label,
-      child: KindLinkPressScale(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 5),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeOutCubic,
-                  width: selected ? 46 : 36,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? kindLinkEmerald.withValues(alpha: 0.16)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOutBack,
-                    switchOutCurve: Curves.easeIn,
-                    transitionBuilder: (child, animation) => FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(scale: animation, child: child),
-                    ),
-                    child: Icon(
-                      selected ? selectedIcon : icon,
-                      key: ValueKey(selected),
-                      color: color,
-                      size: selected ? 23 : 21,
-                    ),
-                  ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 5),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 46,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? kindLinkEmerald.withValues(alpha: 0.16)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textScaler: TextScaler.noScaling,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10.5,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  ),
+                child: Icon(
+                  selected ? selectedIcon : icon,
+                  color: color,
+                  size: 22,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textScaler: TextScaler.noScaling,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1344,9 +1336,6 @@ class _DonationsTabState extends State<_DonationsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.role == 'Organization' || widget.role == 'Donor') {
-      return _CampaignHubPage(role: widget.role, user: widget.user);
-    }
     final items = _sortedItems();
     final ownItems = items
         .where(
@@ -1558,16 +1547,76 @@ class _DonorDonationCard extends StatelessWidget {
     final requester = request['requesterUid'];
     final key = request['requestKey'];
     if (requester == null || key == null) return;
-    await database.ref('pickup_requests/$requester/$key/status').set(status);
-    if (status == 'approved' && item.id != null) {
-      await FirebaseFirestore.instance
-          .collection('donations')
-          .doc(item.id)
-          .update({'status': 'reserved'});
-    }
-    if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Request $status.')));
+    try {
+      if (status == 'approved' && item.id != null) {
+        final firestore = FirebaseFirestore.instance;
+        final donationReference = firestore
+            .collection('donations')
+            .doc(item.id);
+        await firestore.runTransaction((transaction) async {
+          final donation = await transaction.get(donationReference);
+          final approvedKey = donation.data()?['approvedRequestKey'];
+          if (approvedKey != null && approvedKey != key) {
+            throw StateError('This item was already assigned to someone else.');
+          }
+          transaction.update(donationReference, {
+            'status': 'reserved',
+            'approvedRequestKey': key,
+            'approvedRequesterUid': requester,
+          });
+        });
+
+        await database
+            .ref('pickup_requests/$requester/$key/status')
+            .set('approved');
+        final competingRequests = requests.where(
+          (candidate) =>
+              candidate['donationId'] == item.id &&
+              candidate['requestKey'] != key &&
+              candidate['status'] == 'pending',
+        );
+        final notificationBatch = firestore.batch();
+        var hasNotifications = false;
+        for (final competing in competingRequests) {
+          final competingUid = competing['requesterUid'];
+          final competingKey = competing['requestKey'];
+          if (competingUid == null || competingKey == null) continue;
+          await database
+              .ref('pickup_requests/$competingUid/$competingKey/status')
+              .set('picked_by_another');
+          notificationBatch.set(firestore.collection('notifications').doc(), {
+            'recipientId': competingUid,
+            'type': 'pickupUnavailable',
+            'title': 'Donation already reserved',
+            'message':
+                '${item.name} was picked by another person. You can browse other available donations.',
+            'donationId': item.id,
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          hasNotifications = true;
+        }
+        if (hasNotifications) await notificationBatch.commit();
+      } else {
+        await database
+            .ref('pickup_requests/$requester/$key/status')
+            .set(status);
+      }
+      if (context.mounted) {
+        final message = status == 'approved'
+            ? 'Request approved. Other requesters were notified.'
+            : 'Request $status.';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        final message = error is StateError
+            ? error.message.toString()
+            : 'Unable to update this request. Please try again.';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
+      }
     }
   }
 
@@ -1588,42 +1637,10 @@ class _DonorDonationCard extends StatelessWidget {
               subtitle: Text(item.availability!),
             ),
           ...itemRequests.map(
-            (request) => ListTile(
-              leading: const Icon(Icons.person_pin_circle_outlined),
-              title: Text(
-                '${request['requesterName'] ?? 'A neighbor'} requested pickup',
-              ),
-              subtitle: Text(
-                (request['status'] ?? 'pending').toString().toUpperCase(),
-              ),
-              trailing: (request['status'] ?? 'pending') == 'pending'
-                  ? Wrap(
-                      children: [
-                        KindLinkPressScale(
-                          child: IconButton(
-                            tooltip: 'Approve',
-                            onPressed: () =>
-                                _setRequest(context, request, 'approved'),
-                            icon: const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ),
-                        KindLinkPressScale(
-                          child: IconButton(
-                            tooltip: 'Reject',
-                            onPressed: () =>
-                                _setRequest(context, request, 'rejected'),
-                            icon: const Icon(
-                              Icons.cancel_outlined,
-                              color: Colors.red,
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : null,
+            (request) => _DonorPickupRequestRow(
+              request: request,
+              onApprove: () => _setRequest(context, request, 'approved'),
+              onReject: () => _setRequest(context, request, 'rejected'),
             ),
           ),
           if (item.id != null)
@@ -1635,6 +1652,17 @@ class _DonorDonationCard extends StatelessWidget {
                       .collection('donations')
                       .doc(item.id)
                       .update({'status': 'completed'});
+                  for (final request in itemRequests.where(
+                    (request) => request['status'] == 'approved',
+                  )) {
+                    final requester = request['requesterUid'];
+                    final key = request['requestKey'];
+                    if (requester != null && key != null) {
+                      await database
+                          .ref('pickup_requests/$requester/$key/status')
+                          .set('completed');
+                    }
+                  }
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -1653,14 +1681,129 @@ class _DonorDonationCard extends StatelessWidget {
   }
 }
 
+class _DonorPickupRequestRow extends StatelessWidget {
+  const _DonorPickupRequestRow({
+    required this.request,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  final Map<String, dynamic> request;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  Future<String> _requesterName() async {
+    final savedName = (request['requesterName'] as String? ?? '').trim();
+    if (savedName.isNotEmpty && savedName != 'Community member') {
+      return savedName;
+    }
+    final requesterUid = request['requesterUid'] as String?;
+    if (requesterUid != null && requesterUid.isNotEmpty) {
+      final snapshot = await database.ref('users/$requesterUid/name').get();
+      final profileName = (snapshot.value as String? ?? '').trim();
+      if (profileName.isNotEmpty) return profileName;
+    }
+    return savedName.isEmpty ? 'Community member' : savedName;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (request['status'] ?? 'pending').toString().toLowerCase();
+    final isPending = status == 'pending';
+    final statusColor = switch (status) {
+      'approved' => Colors.green,
+      'rejected' || 'cancelled' || 'canceled' => Colors.red,
+      'picked_by_another' => Colors.blueGrey,
+      'completed' => kindLinkEmerald,
+      _ => Colors.orange.shade800,
+    };
+    final statusLabel = status == 'picked_by_another'
+        ? 'ITEM PICKED BY ANOTHER PERSON'
+        : status.toUpperCase();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.person_pin_circle_outlined, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FutureBuilder<String>(
+                  future: _requesterName(),
+                  builder: (context, snapshot) {
+                    final name =
+                        snapshot.data ??
+                        request['requesterName'] as String? ??
+                        'Community member';
+                    return Text(
+                      '$name requested pickup',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 16),
+                    );
+                  },
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (isPending) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: onApprove,
+                        icon: const Icon(Icons.check_circle_outline, size: 18),
+                        label: const Text('Approve'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.green.shade700,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: onReject,
+                        icon: const Icon(Icons.cancel_outlined, size: 18),
+                        label: const Text('Reject'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red.shade700,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DonationLocationPicker extends StatefulWidget {
   const _DonationLocationPicker({
     this.title = 'Pick item location',
     this.instruction = 'Tap anywhere on the map to place the donation pin.',
+    this.initialLocation,
   });
 
   final String title;
   final String instruction;
+  final LatLng? initialLocation;
 
   @override
   State<_DonationLocationPicker> createState() =>
@@ -1670,7 +1813,13 @@ class _DonationLocationPicker extends StatefulWidget {
 class _DonationLocationPickerState extends State<_DonationLocationPicker> {
   static const _defaultLocation = LatLng(6.7497, 125.3572);
   final _mapController = MapController();
-  LatLng _selectedLocation = _defaultLocation;
+  late LatLng _selectedLocation;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedLocation = widget.initialLocation ?? _defaultLocation;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1689,7 +1838,7 @@ class _DonationLocationPickerState extends State<_DonationLocationPicker> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _defaultLocation,
+              initialCenter: _selectedLocation,
               initialZoom: 13,
               onTap: (tapPosition, point) {
                 setState(() => _selectedLocation = point);

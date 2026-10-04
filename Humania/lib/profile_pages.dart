@@ -112,18 +112,94 @@ class _ReferenceProfileTab extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _ReferenceTile(
-                icon: Icons.apartment_outlined,
-                title: 'Organizations',
-                subtitle:
-                    user.organizationName ?? 'Create or join an organization',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        _OrganizationPage(user: user, onSaved: onUserChanged),
+              _ProfileCategoryCard(
+                icon: Icons.swap_horiz_rounded,
+                title: 'Giving & receiving',
+                children: [
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.inventory_2_outlined,
+                    title: 'My donations',
+                    subtitle: 'View your listings and manage pickup requests',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const _MyDonationsPage(),
+                      ),
+                    ),
                   ),
-                ),
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.handshake_outlined,
+                    title: 'My pickup requests',
+                    subtitle: 'Track status, view details, or cancel requests',
+                    onTap: () => _openRequests(context),
+                  ),
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.campaign_outlined,
+                    title: 'My donation pledges',
+                    subtitle: 'Track campaign items, approval, and handover',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const _DonorPledgesPage(),
+                      ),
+                    ),
+                  ),
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.star_outline,
+                    title: 'Pickup reviews',
+                    subtitle: '${reviews.length} reviews from pickups',
+                    onTap: () => _openReviews(context),
+                  ),
+                ],
               ),
+              const SizedBox(height: 16),
+              _ProfileCategoryCard(
+                icon: Icons.people_alt_outlined,
+                title: 'Community support',
+                children: [
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.front_hand_outlined,
+                    title: 'My help requests',
+                    subtitle: 'Track approvals, pledges, and received items',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const _MyHelpRequestsPage(),
+                      ),
+                    ),
+                  ),
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.volunteer_activism_outlined,
+                    title: 'My help donations',
+                    subtitle: 'Track pledges, delivery, and confirmation codes',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const _MyHelpDonationsPage(),
+                      ),
+                    ),
+                  ),
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.apartment_outlined,
+                    title: 'Organizations',
+                    subtitle:
+                        user.organizationName ??
+                        'Create or join an organization',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => _OrganizationPage(
+                          user: user,
+                          onSaved: onUserChanged,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               FutureBuilder<DataSnapshot>(
                 future: firebase_auth.FirebaseAuth.instance.currentUser == null
                     ? null
@@ -143,9 +219,12 @@ class _ReferenceProfileTab extends StatelessWidget {
                       organization['ownerUid'] == uid &&
                       organization['verificationStatus'] == 'verified';
                   if (!isVerifiedLeader) return const SizedBox.shrink();
-                  return Column(
+                  return _ProfileCategoryCard(
+                    icon: Icons.business_outlined,
+                    title: 'Organization tools',
                     children: [
                       _ReferenceTile(
+                        embedded: true,
                         icon: Icons.fact_check_outlined,
                         title: 'Help request approvals',
                         subtitle: 'Approve or decline community requests',
@@ -157,6 +236,7 @@ class _ReferenceProfileTab extends StatelessWidget {
                         ),
                       ),
                       _ReferenceTile(
+                        embedded: true,
                         icon: Icons.add_business_outlined,
                         title: 'Temporary drop-off points',
                         subtitle: 'Create a verified collection location',
@@ -172,67 +252,57 @@ class _ReferenceProfileTab extends StatelessWidget {
                 },
               ),
               if (user.isAdmin)
-                _ReferenceTile(
-                  icon: Icons.admin_panel_settings_outlined,
-                  title: 'Admin verification',
-                  subtitle: 'Verify organizations and help requests',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const _AdminOrganizationVerificationPage(),
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: _ProfileCategoryCard(
+                    icon: Icons.admin_panel_settings_outlined,
+                    title: 'Administration',
+                    children: [
+                      _ReferenceTile(
+                        embedded: true,
+                        icon: Icons.verified_user_outlined,
+                        title: 'Admin verification',
+                        subtitle: 'Verify organizations and help requests',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const _AdminOrganizationVerificationPage(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 16),
+              _ProfileCategoryCard(
+                icon: Icons.manage_accounts_outlined,
+                title: 'Account & activity',
+                children: [
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.notifications_outlined,
+                    title: 'Notifications',
+                    subtitle: 'Donation and request updates',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const _NotificationsPage(),
+                      ),
                     ),
                   ),
-                ),
-              _ReferenceTile(
-                icon: Icons.front_hand_outlined,
-                title: 'My help requests',
-                subtitle: 'Track approvals, pledges, and received items',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const _MyHelpRequestsPage(),
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.settings_outlined,
+                    title: 'Settings',
+                    subtitle: 'Account and security',
+                    onTap: () => _openSettings(context),
                   ),
-                ),
-              ),
-              _ReferenceTile(
-                icon: Icons.volunteer_activism_outlined,
-                title: 'My help donations',
-                subtitle: 'Track pledges, delivery, and confirmation codes',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const _MyHelpDonationsPage(),
+                  _ReferenceTile(
+                    embedded: true,
+                    icon: Icons.logout,
+                    title: 'Log out',
+                    onTap: onSignOut,
                   ),
-                ),
-              ),
-              _ReferenceTile(
-                icon: Icons.notifications_outlined,
-                title: 'Notifications',
-                subtitle: 'Donation and request updates',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const _NotificationsPage()),
-                ),
-              ),
-              _ReferenceTile(
-                icon: Icons.handshake_outlined,
-                title: 'My pickup requests',
-                subtitle: '${pickupRequests.length} pickup requests',
-                onTap: () => _openRequests(context),
-              ),
-              _ReferenceTile(
-                icon: Icons.star_outline,
-                title: 'Reviews',
-                subtitle: '${reviews.length} reviews from pickups',
-                onTap: () => _openReviews(context),
-              ),
-              _ReferenceTile(
-                icon: Icons.settings_outlined,
-                title: 'Settings',
-                subtitle: 'Account and security',
-                onTap: () => _openSettings(context),
-              ),
-              _ReferenceTile(
-                icon: Icons.logout,
-                title: 'Log Out',
-                onTap: onSignOut,
+                ],
               ),
             ],
           ),
@@ -242,11 +312,8 @@ class _ReferenceProfileTab extends StatelessWidget {
   }
 
   void _openRequests(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _PickupRequestsPage(requests: pickupRequests),
-      ),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const _PickupRequestsPage()));
   }
 
   void _openSettings(BuildContext context) {
@@ -273,24 +340,421 @@ class _ReferenceProfileTab extends StatelessWidget {
 }
 
 class _PickupRequestsPage extends StatelessWidget {
-  const _PickupRequestsPage({required this.requests});
-
-  final List<DonationItem> requests;
+  const _PickupRequestsPage();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My requests')),
-      body: requests.isEmpty
-          ? const Center(child: Text('No pickup requests yet.'))
-          : ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: requests.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemBuilder: (_, index) => _DonationCard(item: requests[index]),
+      appBar: AppBar(title: const Text('My pickup requests')),
+      body: firebase_auth.FirebaseAuth.instance.currentUser == null
+          ? const Center(child: Text('Sign in to view pickup requests.'))
+          : StreamBuilder<DatabaseEvent>(
+              stream: database
+                  .ref(
+                    'pickup_requests/${firebase_auth.FirebaseAuth.instance.currentUser!.uid}',
+                  )
+                  .onValue,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final value = snapshot.data!.snapshot.value;
+                if (value is! Map || value.isEmpty) {
+                  return const Center(child: Text('No pickup requests yet.'));
+                }
+                final requests =
+                    Map<Object?, Object?>.from(value).entries
+                        .where((entry) => entry.value is Map)
+                        .map(
+                          (entry) => _PickupRequestRecord(
+                            id: entry.key.toString(),
+                            data: Map<String, dynamic>.from(
+                              Map<Object?, Object?>.from(entry.value! as Map)
+                                  .map(
+                                    (key, value) =>
+                                        MapEntry(key.toString(), value),
+                                  ),
+                            ),
+                          ),
+                        )
+                        .toList()
+                      ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+                return ListView.separated(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: requests.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) =>
+                      _PickupRequestCard(request: requests[index]),
+                );
+              },
             ),
     );
   }
+}
+
+class _PickupRequestRecord {
+  const _PickupRequestRecord({required this.id, required this.data});
+
+  final String id;
+  final Map<String, dynamic> data;
+
+  String get status => (data['status'] as String? ?? 'pending').toLowerCase();
+  String get statusLabel => status == 'picked_by_another'
+      ? 'ITEM PICKED BY ANOTHER PERSON'
+      : status.replaceAll('_', ' ').toUpperCase();
+  DateTime get requestedAt =>
+      DateTime.tryParse(data['requestedAt'] as String? ?? '') ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+class _PickupRequestCard extends StatelessWidget {
+  const _PickupRequestCard({required this.request});
+
+  final _PickupRequestRecord request;
+
+  Color _statusColor() => switch (request.status) {
+    'approved' => Colors.green,
+    'rejected' || 'cancelled' || 'canceled' => Colors.red,
+    'picked_by_another' => Colors.blueGrey,
+    'completed' => kindLinkEmerald,
+    _ => Colors.orange.shade800,
+  };
+
+  IconData _statusIcon() => switch (request.status) {
+    'approved' => Icons.check_circle_outline,
+    'rejected' || 'cancelled' || 'canceled' => Icons.cancel_outlined,
+    'picked_by_another' => Icons.info_outline,
+    'completed' => Icons.task_alt,
+    _ => Icons.schedule_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _statusColor();
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _PickupRequestDetailsPage(request: request),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withValues(alpha: .12),
+                foregroundColor: color,
+                child: Icon(_statusIcon()),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      request.data['name'] as String? ?? 'Donation',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('From ${request.data['donor'] ?? 'Community donor'}'),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: .1),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        request.statusLabel,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.black26),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PickupRequestDetailsPage extends StatelessWidget {
+  const _PickupRequestDetailsPage({required this.request});
+
+  final _PickupRequestRecord request;
+
+  Future<void> _remove(BuildContext context) async {
+    final action = request.status == 'pending' ? 'cancel' : 'remove';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          '${action[0].toUpperCase()}${action.substring(1)} request?',
+        ),
+        content: Text(
+          action == 'cancel'
+              ? 'The donor will no longer see this pickup request.'
+              : 'This removes the request from your history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(action == 'cancel' ? 'Cancel request' : 'Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await database.ref('pickup_requests/$uid/${request.id}').remove();
+    if (context.mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final requestedAt = request.requestedAt.millisecondsSinceEpoch == 0
+        ? null
+        : request.requestedAt;
+    final canRemove = request.status != 'approved';
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pickup request details')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 64, color: kindLinkEmerald),
+          const SizedBox(height: 12),
+          Text(
+            request.data['name'] as String? ?? 'Donation',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: kindLinkPrimaryDark,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _PickupDetailRow(
+            icon: Icons.info_outline,
+            label: 'Status',
+            value: request.statusLabel,
+          ),
+          _PickupDetailRow(
+            icon: Icons.person_outline,
+            label: 'Donor',
+            value: request.data['donor'] as String? ?? 'Community donor',
+          ),
+          _PickupDetailRow(
+            icon: Icons.location_on_outlined,
+            label: 'Location',
+            value: request.data['location'] as String? ?? 'Pinned location',
+          ),
+          if ((request.data['details'] as String? ?? '').isNotEmpty)
+            _PickupDetailRow(
+              icon: Icons.notes_outlined,
+              label: 'Details',
+              value: request.data['details'] as String,
+            ),
+          if (requestedAt != null)
+            _PickupDetailRow(
+              icon: Icons.calendar_today_outlined,
+              label: 'Requested',
+              value: formatPostedDate(requestedAt),
+            ),
+          const SizedBox(height: 18),
+          if (request.status == 'approved')
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'The donor approved this request. Coordinate the pickup using the donation details provided.',
+                ),
+              ),
+            ),
+          if (request.status == 'picked_by_another')
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'This item was already picked by another person. You can remove this request and browse other available donations.',
+                ),
+              ),
+            ),
+          if (canRemove)
+            OutlinedButton.icon(
+              onPressed: () => _remove(context),
+              icon: Icon(
+                request.status == 'pending'
+                    ? Icons.cancel_outlined
+                    : Icons.delete_outline,
+              ),
+              label: Text(
+                request.status == 'pending'
+                    ? 'Cancel pickup request'
+                    : 'Remove from history',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PickupDetailRow extends StatelessWidget {
+  const _PickupDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(icon, color: kindLinkEmerald),
+    title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+    subtitle: Text(value),
+  );
+}
+
+class _MyDonationsPage extends StatelessWidget {
+  const _MyDonationsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    return Scaffold(
+      appBar: AppBar(title: const Text('My donations')),
+      body: uid == null
+          ? const Center(child: Text('Sign in to view your donations.'))
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('donations')
+                  .where('ownerUid', isEqualTo: uid)
+                  .snapshots(),
+              builder: (context, donationSnapshot) {
+                if (!donationSnapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final donations = donationSnapshot.data!.docs;
+                if (donations.isEmpty) {
+                  return const Center(
+                    child: Text('You have not posted any donations yet.'),
+                  );
+                }
+                return ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: donations.map((document) {
+                    final data = document.data();
+                    final item = donationFromData(document.id, data);
+                    final status = (data['status'] as String? ?? 'available')
+                        .replaceAll('_', ' ')
+                        .toUpperCase();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Chip(
+                          avatar: const Icon(Icons.circle, size: 10),
+                          label: Text(status),
+                        ),
+                        _DonationCard(
+                          item: item,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => _MyDonationDetailsPage(
+                                item: item,
+                                ownerUid: uid,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _MyDonationDetailsPage extends StatelessWidget {
+  const _MyDonationDetailsPage({required this.item, required this.ownerUid});
+
+  final DonationItem item;
+  final String ownerUid;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Manage donation')),
+      body: StreamBuilder<DatabaseEvent>(
+        stream: database.ref('pickup_requests').onValue,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final requests = _incomingDonationRequests(
+            snapshot.data!.snapshot.value,
+            ownerUid,
+          );
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [_DonorDonationCard(item: item, requests: requests)],
+          );
+        },
+      ),
+    );
+  }
+}
+
+List<Map<String, dynamic>> _incomingDonationRequests(
+  Object? value,
+  String ownerUid,
+) {
+  if (value is! Map) return const [];
+  final result = <Map<String, dynamic>>[];
+  for (final requester in Map<Object?, Object?>.from(value).entries) {
+    if (requester.value is! Map) continue;
+    for (final request in Map<Object?, Object?>.from(
+      requester.value! as Map,
+    ).entries) {
+      if (request.value is! Map) continue;
+      final data = Map<String, dynamic>.from(
+        Map<Object?, Object?>.from(request.value! as Map)
+            .map((key, value) => MapEntry(key.toString(), value)),
+      );
+      if (data['ownerUid'] != ownerUid) continue;
+      data['requesterUid'] = requester.key.toString();
+      data['requestKey'] = request.key.toString();
+      result.add(data);
+    }
+  }
+  return result;
 }
 
 class _ReviewsPage extends StatelessWidget {
@@ -503,6 +967,7 @@ class _OrganizationPageState extends State<_OrganizationPage> {
   bool _deletingOrganization = false;
   String _organizationVerificationStatus = 'pending';
   String? _inviteCode;
+  String? _organizationsError;
 
   @override
   void initState() {
@@ -545,29 +1010,68 @@ class _OrganizationPageState extends State<_OrganizationPage> {
         ).entries) {
           if (entry.value is! Map) continue;
           final data = Map<Object?, Object?>.from(entry.value! as Map);
-          final name = data['name'] as String?;
+          final name = _organizationString(data, const [
+            'name',
+            'organizationName',
+            'orgName',
+            'displayName',
+            'title',
+          ]);
           if (name == null || name.trim().isEmpty) continue;
-          if ((data['verificationStatus'] as String? ?? 'pending') !=
-              'verified') {
-            continue;
-          }
+          final status = _organizationStatus(data);
           loaded.add({
             'id': entry.key.toString(),
-            'name': name,
-            'details': data['details'] as String? ?? '',
-            'inviteCode': data['inviteCode'] as String? ?? '',
+            'name': name.trim(),
+            'details':
+                _organizationString(data, const ['details', 'description']) ??
+                '',
+            'inviteCode':
+                _organizationString(data, const ['inviteCode', 'code']) ?? '',
+            'verificationStatus': status,
           });
         }
       }
+      loaded.sort((a, b) => a['name']!.compareTo(b['name']!));
       setState(() {
         _organizations
           ..clear()
           ..addAll(loaded);
         _loadingOrganizations = false;
+        _organizationsError = null;
       });
-    } on Exception {
-      if (mounted) setState(() => _loadingOrganizations = false);
+    } on Exception catch (error) {
+      if (mounted) {
+        setState(() {
+          _loadingOrganizations = false;
+          _organizationsError = error.toString();
+        });
+      }
     }
+  }
+
+  String? _organizationString(
+    Map<Object?, Object?> organization,
+    Iterable<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = organization[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
+  }
+
+  String _organizationStatus(Map<Object?, Object?> organization) {
+    final status = _organizationString(organization, const [
+      'verificationStatus',
+      'status',
+    ])?.toLowerCase();
+    if (status == 'approved' || status == 'active') return 'verified';
+    if (status != null) return status;
+    if (organization['verified'] == true ||
+        organization['isVerified'] == true) {
+      return 'verified';
+    }
+    return 'pending';
   }
 
   @override
@@ -594,6 +1098,8 @@ class _OrganizationPageState extends State<_OrganizationPage> {
   Widget _availableOrganizationCard(Map<String, String> organization) {
     final currentUid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
     final isOwnedByCurrentUser = organization['id'] == currentUid;
+    final verificationStatus = organization['verificationStatus'] ?? 'pending';
+    final isVerified = verificationStatus == 'verified';
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -620,12 +1126,21 @@ class _OrganizationPageState extends State<_OrganizationPage> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          trailing: isOwnedByCurrentUser
-              ? const Chip(label: Text('Yours'))
-              : FilledButton(
+          trailing: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (isOwnedByCurrentUser)
+                const Chip(label: Text('Yours'))
+              else if (isVerified)
+                FilledButton(
                   onPressed: () => _joinListedOrganization(organization),
                   child: const Text('Join'),
-                ),
+                )
+              else
+                Chip(label: Text(verificationStatus.toUpperCase())),
+            ],
+          ),
         ),
       ),
     );
@@ -1378,6 +1893,92 @@ class _OrganizationPageState extends State<_OrganizationPage> {
             ),
           ),
           const SizedBox(height: 14),
+          _ProfileCategoryCard(
+            icon: Icons.volunteer_activism_outlined,
+            title: 'Organization donations',
+            children: [
+              _ReferenceTile(
+                embedded: true,
+                icon: Icons.campaign_outlined,
+                title: _isOrganizationOwner
+                    ? 'Campaign management'
+                    : 'Donation campaigns',
+                subtitle: _isOrganizationOwner
+                    ? 'Create campaigns, review progress, and post reports'
+                    : 'Browse campaigns from verified organizations',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _isOrganizationOwner
+                        ? _OrganizationCampaignsPage(user: widget.user)
+                        : _DonorCampaignsPage(user: widget.user),
+                  ),
+                ),
+              ),
+              _ReferenceTile(
+                embedded: true,
+                icon: Icons.volunteer_activism_rounded,
+                title: 'My donation pledges',
+                subtitle: 'Track campaign donations and handover status',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const _DonorPledgesPage()),
+                ),
+              ),
+              if (_isOrganizationOwner &&
+                  _organizationVerificationStatus == 'verified') ...[
+                _ReferenceTile(
+                  embedded: true,
+                  icon: Icons.inbox_outlined,
+                  title: 'Donation requests',
+                  subtitle: 'Approve pledges and confirm received items',
+                  onTap: () {
+                    final uid =
+                        firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+                    if (uid == null) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            _OrganizationOffersPage(organizationId: uid),
+                      ),
+                    );
+                  },
+                ),
+                _ReferenceTile(
+                  embedded: true,
+                  icon: Icons.fact_check_outlined,
+                  title: 'Help request approvals',
+                  subtitle: 'Review community requests for your organization',
+                  onTap: () {
+                    final uid =
+                        firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+                    if (uid == null) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            _HelpRequestModerationPage(organizationId: uid),
+                      ),
+                    );
+                  },
+                ),
+                _ReferenceTile(
+                  embedded: true,
+                  icon: Icons.add_business_outlined,
+                  title: 'Drop-off points',
+                  subtitle: 'Create verified collection locations',
+                  onTap: () {
+                    final uid =
+                        firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+                    if (uid == null) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => _DropOffPointsPage(organizationId: uid),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 14),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -1447,6 +2048,33 @@ class _OrganizationPageState extends State<_OrganizationPage> {
                         child: CircularProgressIndicator(),
                       ),
                     )
+                  else if (_organizationsError != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xfffff4f2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Unable to load organizations from Firebase.',
+                            style: TextStyle(color: kindLinkUrgent),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() => _loadingOrganizations = true);
+                              _loadOrganizations();
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Try again'),
+                          ),
+                        ],
+                      ),
+                    )
                   else if (_organizations.isEmpty)
                     Container(
                       width: double.infinity,
@@ -1488,6 +2116,7 @@ class _AccountSettingsPage extends StatefulWidget {
 
 class _AccountSettingsPageState extends State<_AccountSettingsPage> {
   late final TextEditingController _nameController;
+  late final TextEditingController _usernameController;
   late final TextEditingController _emailController;
   late final TextEditingController _passwordController;
   final _formKey = GlobalKey<FormState>();
@@ -1499,6 +2128,7 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user.name);
+    _usernameController = TextEditingController(text: widget.user.username);
     _emailController = TextEditingController(text: widget.user.email);
     _passwordController = TextEditingController();
     _profileImageBytes = widget.user.profileImageBytes;
@@ -1521,6 +2151,7 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -1540,6 +2171,10 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
       }
       await database.ref('users/${authUser.uid}').update({
         'name': _nameController.text.trim(),
+        'username': _usernameController.text.trim().replaceFirst(
+          RegExp(r'^@+'),
+          '',
+        ),
         'email': _emailController.text.trim(),
         'profileAvatarIndex': _profileAvatarIndex,
       });
@@ -1558,6 +2193,10 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
     }
     widget.user
       ..name = _nameController.text.trim()
+      ..username = _usernameController.text.trim().replaceFirst(
+        RegExp(r'^@+'),
+        '',
+      )
       ..email = _emailController.text.trim();
     widget.user.profileImageBytes = _profileImageBytes;
     widget.user.profileAvatarIndex = _profileAvatarIndex;
@@ -1640,6 +2279,21 @@ class _AccountSettingsPageState extends State<_AccountSettingsPage> {
               ),
               validator: (value) => value == null || value.trim().isEmpty
                   ? 'Enter your name'
+                  : null,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _usernameController,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'Nickname / username',
+                prefixIcon: Icon(Icons.alternate_email),
+              ),
+              validator: (value) =>
+                  value == null ||
+                      value.trim().replaceFirst(RegExp(r'^@+'), '').isEmpty
+                  ? 'Enter your nickname'
                   : null,
             ),
             const SizedBox(height: 14),
@@ -1751,33 +2405,86 @@ class _ReferenceStat extends StatelessWidget {
   }
 }
 
+class _ProfileCategoryCard extends StatelessWidget {
+  const _ProfileCategoryCard({
+    required this.icon,
+    required this.title,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+            child: Row(
+              children: [
+                Icon(icon, color: kindLinkEmerald, size: 22),
+                const SizedBox(width: 9),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: kindLinkPrimaryDark,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (var index = 0; index < children.length; index++) ...[
+            if (index > 0) const Divider(height: 1, indent: 66, endIndent: 16),
+            children[index],
+          ],
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
+}
+
 class _ReferenceTile extends StatelessWidget {
   const _ReferenceTile({
     required this.icon,
     required this.title,
     required this.onTap,
     this.subtitle,
+    this.embedded = false,
   });
 
   final IconData icon;
   final String title;
   final String? subtitle;
   final VoidCallback onTap;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
+    final tile = ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+      leading: Icon(icon, color: const Color(0xffe1b936), size: 28),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing: const Icon(Icons.chevron_right, color: Colors.black26),
+    );
+    if (embedded) return tile;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        leading: Icon(icon, color: const Color(0xffe1b936), size: 28),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: subtitle == null ? null : Text(subtitle!),
-        trailing: const Icon(Icons.chevron_right, color: Colors.black26),
-      ),
+      child: tile,
     );
   }
 }
